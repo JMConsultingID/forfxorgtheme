@@ -32,24 +32,6 @@ function forfx_theme_additional_add_to_cart_redirect() {
     return wc_get_checkout_url(); // Redirect to checkout
 }
 
-// Check for multiple products and display notice with refresh button
-function forfx_theme_check_for_multiple_products() {
-    if ( WC()->cart->get_cart_contents_count() > 1 ) {
-        // Display notice
-        wc_print_notice( __( 'Only 1 product can be checked out at a time. Please refresh the cart to keep only the last product.', 'hello-theme' ), 'error' );
-        
-        // Display refresh button
-        echo '<form method="post">';
-        echo '<button type="submit" name="refresh_cart" class="button">' . __( 'Refresh Cart', 'hello-theme' ) . '</button>';
-        echo '</form>';
-        
-        // If refresh button is pressed, keep only the last added product
-        if ( isset( $_POST['refresh_cart'] ) ) {
-            forfx_theme_refresh_cart_keep_last_product();
-        }
-    }
-}
-
 // Function to refresh the cart and keep only the last product
 function forfx_theme_refresh_cart_keep_last_product() {
     $cart_items = WC()->cart->get_cart();
