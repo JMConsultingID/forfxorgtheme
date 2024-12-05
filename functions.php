@@ -25,8 +25,8 @@ require_once get_stylesheet_directory() . '/inc/functions/forfx-theme-functions.
 
 function forfx_theme_scripts_styles()
 {
-    wp_enqueue_style('forfx-theme-style', get_stylesheet_directory_uri() . '/style.css', [], forfx_THEME_VERSION);
-    wp_enqueue_style('forfx-theme-custom-style', get_stylesheet_directory_uri() . '/assets/css/forfx-theme.css', [], forfx_THEME_VERSION);
-    wp_enqueue_script('forfx-theme-custom-script', get_stylesheet_directory_uri() . '/assets/js/forfx-theme.js', [], forfx_THEME_VERSION, true);
+    wp_enqueue_style('forfx-theme-style', get_stylesheet_directory_uri() . '/style.css', [], FORFX_THEME_VERSION);
+    wp_enqueue_style('forfx-theme-custom-style', get_stylesheet_directory_uri() . '/assets/css/forfx-theme.css', [], FORFX_THEME_VERSION);
+    wp_enqueue_script('forfx-theme-custom-script', get_stylesheet_directory_uri() . '/assets/js/forfx-theme.js', [], FORFX_THEME_VERSION, true);
 }
 add_action('wp_enqueue_scripts', 'forfx_theme_scripts_styles', 20);
