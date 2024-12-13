@@ -168,71 +168,58 @@ function process_billing_form() {
         return;
     }
 
-   try {
-    // Create new order
-    $order = wc_create_order();
+    try {
+        // Create new order
+        $order = wc_create_order();
 
-    // Set created via
-    $order->set_created_via('checkout');
-
-    // Set customer id - if logged in use current user, otherwise 0 for guest
-    $customer_id = get_current_user_id();
-    $order->set_customer_id($customer_id);
-
-    // Add cart items to order
-    foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item) {
-        $product = $cart_item['data'];
-        $quantity = $cart_item['quantity'];
-        
-        $order->add_product(
-            $product,
-            $quantity,
-            array(
-                'subtotal' => $cart_item['line_subtotal'],
-                'total' => $cart_item['line_total']
-            )
-        );
-    }
-
-    // Set billing data properly
-    $billing_address = array();
-    foreach ($billing_fields as $key => $field) {
-        if (!empty($_POST[$key])) {
-            // Remove 'billing_' prefix for the array key
-            $clean_key = str_replace('billing_', '', $key);
-            $billing_address[$clean_key] = wc_clean($_POST[$key]);
+        // Add cart items to order
+        foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item) {
+            $product = $cart_item['data'];
+            $quantity = $cart_item['quantity'];
+            
+            $order->add_product(
+                $product,
+                $quantity,
+                array(
+                    'subtotal' => $cart_item['line_subtotal'],
+                    'total' => $cart_item['line_total']
+                )
+            );
         }
+
+        // Set billing data
+        foreach ($billing_fields as $key => $field) {
+            if (!empty($_POST[$key])) {
+                $setter = 'set_' . str_replace('billing_', '', $key);
+                if (is_callable([$order, $setter])) {
+                    $order->$setter(wc_clean($_POST[$key]));
+                }
+            }
+        }
+
+        // Calculate and set totals
+        $order->calculate_totals();
+        
+        // Set order status to pending
+        $order->set_status('pending');
+        
+        // Save order
+        $order->save();
+
+        // Empty cart
+        WC()->cart->empty_cart();
+
+        // Store order ID in session
+        WC()->session->set('order_awaiting_payment', $order->get_id());
+
+        // Redirect to payment page
+        wp_redirect($order->get_checkout_payment_url());
+        exit;
+
+    } catch (Exception $e) {
+        wc_add_notice($e->getMessage(), 'error');
+        return;
     }
-    
-    // Set billing address as array
-    $order->set_address($billing_address, 'billing');
-    
-    // Optional: Copy billing address to shipping if needed
-    $order->set_address($billing_address, 'shipping');
-
-    // Calculate and set totals
-    $order->calculate_totals();
-    
-    // Set order status to pending
-    $order->set_status('pending');
-    
-    // Save order
-    $order->save();
-
-    // Empty cart
-    WC()->cart->empty_cart();
-
-    // Store order ID in session
-    WC()->session->set('order_awaiting_payment', $order->get_id());
-
-    // Redirect to payment page
-    wp_redirect($order->get_checkout_payment_url());
-    exit;
-
-} catch (Exception $e) {
-    wc_add_notice($e->getMessage(), 'error');
-    return;
-}
 }
 add_action('template_redirect', 'process_billing_form');
 
