@@ -21,7 +21,6 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
- * Debug checkout errors
 do_action('woocommerce_before_checkout_form', $checkout);
 ?>
 
