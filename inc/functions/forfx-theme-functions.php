@@ -83,3 +83,43 @@ function forfx_theme_modify_woocommerce_billing_fields( $fields ) {
     $fields['billing']['billing_email']['priority'] = 5;
     return $fields;
 }
+
+
+add_action('woocommerce_checkout_process', 'forfx_theme_create_pending_order');
+function forfx_theme_create_pending_order() {
+    if (!empty($_POST['billing_first_name'])) {
+        $order = wc_create_order();
+
+
+        foreach (WC()->cart->get_cart() as $cart_item) {
+            $order->add_product($cart_item['data'], $cart_item['quantity']);
+        }
+
+        $order->set_address($_POST, 'billing');
+
+
+        $order->set_status('pending');
+        $order->save();
+
+        wp_redirect(site_url('/order-pay/') . '?order_id=' . $order->get_id());
+        exit;
+    }
+}
+
+add_action('init', 'forfx_theme_add_order_pay_endpoint');
+function forfx_theme_add_order_pay_endpoint() {
+    add_rewrite_rule('^order-pay/?', 'index.php?order_pay=1', 'top');
+}
+
+add_filter('query_vars', function ($vars) {
+    $vars[] = 'order_pay';
+    return $vars;
+});
+
+add_action('template_redirect', 'forfx_theme_load_order_payment_page');
+function forfx_theme_load_order_payment_page() {
+    if (get_query_var('order_pay')) {
+        include get_stylesheet_directory() . '/woocommerce/checkout/form-payment.php';
+        exit;
+    }
+}
