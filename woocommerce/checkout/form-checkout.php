@@ -15,10 +15,6 @@
  * @version 9.4.0
  */
 
-/**
- * Checkout Form
- */
-
 if (!defined('ABSPATH')) {
     exit;
 }
@@ -58,35 +54,30 @@ if (!$checkout->is_registration_enabled() && $checkout->is_registration_required
                 </div>
             </div>
 
-            <!-- Terms and Privacy Policy -->
-            <div class="terms-section">
-                <?php if (wc_get_page_id('terms') > 0) : ?>
-                    <p class="form-row terms wc-terms-and-conditions">
-                        <label class="woocommerce-form__label woocommerce-form__label-for-checkbox checkbox">
-                            <input type="checkbox" class="woocommerce-form__input woocommerce-form__input-checkbox input-checkbox" name="terms" <?php checked(apply_filters('woocommerce_terms_is_checked_default', isset($_POST['terms'])), true); ?> id="terms" />
-                            <span class="woocommerce-terms-and-conditions-checkbox-text"><?php wc_terms_and_conditions_checkbox_text(); ?></span>
-                            <span class="required">*</span>
-                        </label>
-                    </p>
-                <?php endif; ?>
-
-                <div class="woocommerce-privacy-policy-text">
-                    <p><?php
-                        echo sprintf(
-                            __('Your personal data will be used to process your order, support your experience throughout this website, and for other purposes described in our %s.', 'woocommerce'),
-                            '<a href="' . esc_url(get_privacy_policy_url()) . '" class="woocommerce-privacy-policy-link" target="_blank">' . __('privacy policy', 'woocommerce') . '</a>'
-                        );
-                    ?></p>
-                </div>
-            </div>
-
             <!-- Hidden Payment Section -->
             <div id="payment" class="woocommerce-checkout-payment" style="display: none;">
                 <?php woocommerce_checkout_payment(); ?>
             </div>
 
-            <!-- Next Step Button -->
+            <!-- Terms and Next Step Button -->
             <div class="form-row place-order">
+                <?php if (wc_get_page_id('terms') > 0) : ?>
+                    <div class="terms-section">
+                        <div class="woocommerce-terms-and-conditions-wrapper">
+                            <?php do_action('woocommerce_checkout_before_terms_and_conditions'); ?>
+                            
+                            <p class="form-row validate-required">
+                                <label class="woocommerce-form__label woocommerce-form__label-for-checkbox checkbox">
+                                    <input type="checkbox" class="woocommerce-form__input woocommerce-form__input-checkbox input-checkbox" name="terms" <?php checked(apply_filters('woocommerce_terms_is_checked_default', isset($_POST['terms'])), true); ?> id="terms" />
+                                    <span class="woocommerce-terms-and-conditions-checkbox-text"><?php wc_terms_and_conditions_checkbox_text(); ?></span>&nbsp;<span class="required">*</span>
+                                </label>
+                            </p>
+
+                            <?php do_action('woocommerce_checkout_after_terms_and_conditions'); ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
                 <noscript>
                     <?php
                     printf(esc_html__('Since your browser does not support JavaScript, or it is disabled, please ensure you click the %1$sUpdate Totals%2$s button before placing your order. You may be charged more than the amount stated above if you fail to do so.', 'woocommerce'), '<em>', '</em>');
@@ -116,8 +107,7 @@ if (!$checkout->is_registration_enabled() && $checkout->is_registration_required
 }
 
 .cart-review-section,
-.billing-section,
-.terms-section {
+.billing-section {
     background: #fff;
     padding: 20px;
     margin-bottom: 20px;
@@ -133,8 +123,15 @@ if (!$checkout->is_registration_enabled() && $checkout->is_registration_required
 }
 
 .place-order {
-    text-align: right;
     margin-top: 20px;
+}
+
+.terms-section {
+    text-align: left;
+    margin-bottom: 20px;
+    background: #f8f8f8;
+    padding: 15px;
+    border-radius: 4px;
 }
 
 #place_order {
@@ -144,6 +141,7 @@ if (!$checkout->is_registration_enabled() && $checkout->is_registration_required
     font-size: 16px;
     border-radius: 4px;
     border: none;
+    float: right;
 }
 
 #place_order:hover {
@@ -161,31 +159,19 @@ if (!$checkout->is_registration_enabled() && $checkout->is_registration_required
     display: none !important;
 }
 
-/* Style terms and conditions */
-.terms-section {
-    margin-top: 20px;
-}
-
-.terms-section .woocommerce-terms-and-conditions-checkbox-text {
-    margin-left: 5px;
-}
-
-.terms-section .privacy-policy {
-    margin-top: 10px;
-}
-
 /* Fix checkbox alignment */
 .woocommerce-form__label-for-checkbox {
-    display: flex !important;
+    display: inline-flex !important;
     align-items: flex-start !important;
+    margin: 0 !important;
 }
 
 .woocommerce-form__input-checkbox {
-    margin-top: 5px !important;
+    margin: 5px 8px 0 0 !important;
 }
 
-.woocommerce-terms-and-conditions-checkbox-text {
-    flex: 1;
-    padding-left: 10px;
+/* Remove duplicate policy text */
+.woocommerce-terms-and-conditions-wrapper > p:not(.form-row) {
+    display: none;
 }
 </style>
