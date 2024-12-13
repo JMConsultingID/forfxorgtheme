@@ -288,9 +288,6 @@ function debug_checkout_errors($data, $errors) {
 add_action('woocommerce_after_checkout_validation', 'debug_checkout_errors', 10, 2);
 */
 
-<?php
-// Add this to your functions.php
-
 /**
  * Remove duplicate terms and conditions
  */
