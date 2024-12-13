@@ -77,8 +77,10 @@ function custom_order_shortcode_handler() {
             $order = wc_get_order($order_id);
             if ($order) {
                 $redirect_url = $order->get_checkout_payment_url();
-                // Ensure no output before redirection
-                ob_clean();
+                error_log('Redirect URL: ' . $redirect_url);
+                if (ob_get_length()) {
+                    ob_clean();
+                }
                 wp_safe_redirect($redirect_url);
                 exit;
             }
