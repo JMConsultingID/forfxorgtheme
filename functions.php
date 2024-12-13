@@ -32,33 +32,39 @@ function forfx_theme_scripts_styles()
 add_action('wp_enqueue_scripts', 'forfx_theme_scripts_styles', 20);
 
 function create_custom_order_without_product() {
-    // Create a new order
-    $order = wc_create_order();
+    try {
+        // Create a new order
+        $order = wc_create_order();
 
-    // Add a custom product/item to the order
-    $item = new WC_Order_Item_Product();
-    $item->set_name('Test Custom Item Name'); // Custom item name
-    $item->set_quantity(1);
-    $item->set_total(100); // Set the item price (e.g., $100)
-    $order->add_item($item);
+        // Add a custom product/item to the order
+        $item = new WC_Order_Item_Product();
+        $item->set_name('Test Custom Item Name'); // Custom item name
+        $item->set_quantity(1);
+        $item->set_total(100); // Set the item price (e.g., $100)
+        $order->add_item($item);
 
-    // Set billing information (hardcoded for testing purposes)
-    $order->set_billing_first_name('John');
-    $order->set_billing_last_name('Doe');
-    $order->set_billing_email('john.doe@example.com');
-    $order->set_billing_address_1('123 Example Street');
-    $order->set_billing_city('City');
-    $order->set_billing_postcode('12345');
-    $order->set_billing_country('US');
+        // Set billing information
+        $order->set_billing_first_name('John');
+        $order->set_billing_last_name('Doe');
+        $order->set_billing_email('john.doe@example.com');
+        $order->set_billing_address_1('123 Example Street');
+        $order->set_billing_city('City');
+        $order->set_billing_postcode('12345');
+        $order->set_billing_country('US');
 
-    // Set order status to pending payment
-    $order->set_status('pending', 'Awaiting payment.');
+        // Set order status to pending payment
+        $order->set_status('pending', 'Awaiting payment.');
 
-    // Save the order
-    $order->calculate_totals();
-    $order->save();
+        // Calculate totals and save the order
+        $order->calculate_totals();
+        $order->save();
 
-    return $order->get_id();
+        return $order->get_id();
+
+    } catch (Exception $e) {
+        error_log('Error creating order: ' . $e->getMessage());
+        return false;
+    }
 }
 
 function custom_order_shortcode_handler() {
@@ -69,11 +75,11 @@ function custom_order_shortcode_handler() {
         if ($order_id) {
             // Redirect to the Order Pay page
             $order = wc_get_order($order_id);
-            $redirect_url = $order->get_checkout_payment_url();
-
-            // Use PHP header redirection
-            wp_safe_redirect($redirect_url);
-            exit;
+            if ($order) {
+                $redirect_url = $order->get_checkout_payment_url();
+                wp_safe_redirect($redirect_url);
+                exit;
+            }
         } else {
             return '<p>Failed to create the order. Please try again.</p>';
         }
@@ -89,3 +95,4 @@ function custom_order_shortcode_handler() {
 
 // Register the shortcode
 add_shortcode('create_custom_order', 'custom_order_shortcode_handler');
+
