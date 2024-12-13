@@ -31,68 +31,81 @@ function forfx_theme_scripts_styles()
 }
 add_action('wp_enqueue_scripts', 'forfx_theme_scripts_styles', 20);
 
+// Membatasi Cart ke Satu Produk dengan Kuantitas 1
+add_action('woocommerce_add_to_cart', function ($cart_item_key, $product_id, $quantity, $variation_id, $variation) {
+    WC()->cart->empty_cart(); // Kosongkan keranjang sebelum menambahkan produk baru
+}, 10, 5);
 
-/**
- * Functions.php - Hello Elementor Child Theme
- * Custom WooCommerce Multi-step Checkout Implementation
- */
+add_filter('woocommerce_add_cart_item_quantity', function ($quantity, $cart_item_key) {
+    return 1; // Pastikan hanya 1 kuantitas
+}, 10, 2);
 
-// Pastikan hanya 1 produk dalam cart
-add_filter('woocommerce_add_to_cart_validation', 'force_single_product_cart', 10, 2);
-function force_single_product_cart($valid, $product_id) {
-    if (!WC()->cart->is_empty()) {
-        WC()->cart->empty_cart();
-    }
-    return $valid;
-}
-
-// Hapus fields yang tidak diperlukan di checkout
-add_filter('woocommerce_checkout_fields', 'custom_override_checkout_fields');
-function custom_override_checkout_fields($fields) {
-    // Hapus fields yang tidak diperlukan
-    unset($fields['order']['order_comments']);
-    unset($fields['shipping']);
-    
+// Menampilkan Form Billing Saja di Halaman Checkout
+add_filter('woocommerce_checkout_fields', function ($fields) {
+    unset($fields['shipping']); // Hapus field pengiriman
     return $fields;
-}
+});
 
-// Custom template untuk halaman checkout
-add_filter('woocommerce_locate_template', 'custom_woocommerce_locate_template', 10, 3);
-function custom_woocommerce_locate_template($template, $template_name, $template_path) {
-    if ('checkout/form-checkout.php' === $template_name) {
-        $template = get_stylesheet_directory() . '/woocommerce/checkout/form-checkout.php';
+add_action('woocommerce_before_checkout_form', function () {
+    remove_action('woocommerce_checkout_order_review', 'woocommerce_order_review', 10); // Hapus daftar produk
+    remove_action('woocommerce_checkout_order_review', 'woocommerce_checkout_payment', 20); // Hapus metode pembayaran
+}, 1);
+
+// Mengubah Tombol "Place Order" menjadi "Next"
+add_filter('woocommerce_order_button_text', function () {
+    return 'Next'; // Ubah label tombol
+});
+
+// Membuat Pesanan saat Tombol "Next" Ditekan
+add_action('template_redirect', function () {
+    if (isset($_POST['woocommerce_checkout_place_order']) && is_checkout()) {
+        // Buat pesanan dengan status Pending Payment
+        $order = wc_create_order();
+        $cart_items = WC()->cart->get_cart();
+
+        // Tambahkan item dari keranjang ke pesanan
+        foreach ($cart_items as $cart_item) {
+            $order->add_product(
+                wc_get_product($cart_item['product_id']),
+                $cart_item['quantity']
+            );
+        }
+
+        // Tetapkan billing details
+        $billing_data = WC()->customer->get_billing();
+        foreach ($billing_data as $key => $value) {
+            $order->set_billing($key, $value);
+        }
+
+        // Simpan pesanan
+        $order->calculate_totals();
+        $order->update_status('pending', 'Order created via custom multi-step checkout flow.');
+
+        // Kosongkan keranjang dan arahkan ke halaman pembayaran
+        WC()->cart->empty_cart();
+        wp_redirect($order->get_checkout_payment_url());
+        exit;
     }
-    return $template;
-}
+});
 
-// Modifikasi tombol place order
-add_filter('woocommerce_order_button_text', 'custom_order_button_text');
-function custom_order_button_text() {
-    return 'Next Step';
-}
+// Menampilkan Halaman Payment Order (Default WooCommerce)
+add_filter('woocommerce_order_button_text', function () {
+    return __('Pay Now', 'woocommerce'); // Tombol pembayaran pada halaman order-pay
+});
 
-// Buat order ketika next step ditekan
-add_action('woocommerce_checkout_order_processed', 'redirect_to_payment_page', 10, 3);
-function redirect_to_payment_page($order_id, $posted_data, $order) {
-    $order = wc_get_order($order_id);
-    $order->update_status('pending');
-    
-    // Redirect ke halaman pembayaran
-    wp_redirect($order->get_checkout_payment_url());
-    exit;
-}
-
-// Custom template untuk halaman pembayaran
-add_filter('woocommerce_locate_template', 'custom_payment_template', 10, 3);
-function custom_payment_template($template, $template_name, $template_path) {
-    if ('checkout/payment.php' === $template_name) {
-        $template = get_stylesheet_directory() . '/woocommerce/checkout/payment.php';
+// Penyesuaian URL Checkout untuk Parameter add-to-cart
+add_action('template_redirect', function () {
+    if (isset($_GET['add-to-cart']) && is_checkout()) {
+        $product_id = absint($_GET['add-to-cart']);
+        if ($product_id) {
+            WC()->cart->add_to_cart($product_id);
+            wp_redirect(wc_get_checkout_url()); // Arahkan ke halaman checkout
+            exit;
+        }
     }
-    return $template;
-}
+});
 
-// Hapus tambahan produk di checkout
-add_filter('woocommerce_cart_needs_payment', '__return_false');
-
-// Nonaktifkan pembaruan checkout
-add_filter('woocommerce_checkout_update_order_review_expired', '__return_false');
+// Membersihkan Data Checkout Setelah Pesanan Dibuat
+add_action('woocommerce_checkout_order_processed', function ($order_id, $posted_data, $order) {
+    WC()->cart->empty_cart(); // Kosongkan keranjang setelah pesanan dibuat
+}, 10, 3);
