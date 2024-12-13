@@ -46,6 +46,7 @@ if ( ! $checkout->is_registration_enabled() && $checkout->is_registration_requir
 
 			<button type="submit" class="button alt" name="woocommerce_checkout_place_order" value="Next">Next</button>
 		</div>
+	<?php endif; ?>
 
 </form>
 
