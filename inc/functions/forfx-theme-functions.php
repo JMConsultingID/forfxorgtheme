@@ -17,21 +17,25 @@
  * - Payment redirect
  */
 
-// Register shortcode for custom billing form
 function custom_billing_form_shortcode() {
+    // Initialize output buffer
+    ob_start();
+
     // Check if cart is empty
     if (WC()->cart->is_empty()) {
+        wc_print_notices();
         wc_add_notice('Your cart is empty. Please add some products before checkout.', 'error');
-        return '<p>' . wp_kses_post(sprintf(
+        echo '<p>' . wp_kses_post(sprintf(
             'Return to <a href="%s">shop page</a>.', 
             esc_url(wc_get_page_permalink('shop'))
         )) . '</p>';
+        return ob_get_clean();
     }
 
     // If user already has an order in process, redirect to payment page
     if (!empty(WC()->session) && !empty(WC()->session->get('order_awaiting_payment'))) {
         $order_id = WC()->session->get('order_awaiting_payment');
-        wp_redirect(wc_get_endpoint_url('order-pay', $order_id, wc_get_checkout_url()));
+        wp_safe_redirect(wc_get_endpoint_url('order-pay', $order_id, wc_get_checkout_url()));
         exit;
     }
 
@@ -39,7 +43,8 @@ function custom_billing_form_shortcode() {
     $checkout = WC()->checkout;
     $billing_fields = $checkout->get_checkout_fields('billing');
 
-    ob_start();
+    // Print any notices
+    wc_print_notices();
     ?>
     <div class="custom-checkout-container">
         <!-- Cart Review Section -->
@@ -128,13 +133,19 @@ function custom_billing_form_shortcode() {
         .billing-fields {
             margin-top: 30px;
         }
+        .woocommerce-error,
+        .woocommerce-message,
+        .woocommerce-info {
+            margin-bottom: 20px;
+        }
     </style>
     <?php
+    
+    // Return the buffered content
     return ob_get_clean();
 }
 add_shortcode('custom_billing_form', 'custom_billing_form_shortcode');
 
-// Process form submission and create order
 function process_billing_form() {
     // Check if our form is submitted
     if (!isset($_POST['process_billing'])) {
@@ -168,14 +179,14 @@ function process_billing_form() {
         return;
     }
 
-   try {
+    try {
         // Create new order
         $order = wc_create_order();
 
         // Set created via
         $order->set_created_via('checkout');
 
-        // Set customer id - if logged in use current user, otherwise 0 for guest
+        // Set customer id
         $customer_id = get_current_user_id();
         $order->set_customer_id($customer_id);
 
@@ -198,16 +209,15 @@ function process_billing_form() {
         $billing_address = array();
         foreach ($billing_fields as $key => $field) {
             if (!empty($_POST[$key])) {
-                // Remove 'billing_' prefix for the array key
                 $clean_key = str_replace('billing_', '', $key);
                 $billing_address[$clean_key] = wc_clean($_POST[$key]);
             }
         }
         
-        // Set billing address as array
+        // Set billing address
         $order->set_address($billing_address, 'billing');
         
-        // Optional: Copy billing address to shipping if needed
+        // Copy billing to shipping
         $order->set_address($billing_address, 'shipping');
 
         // Calculate and set totals
@@ -226,7 +236,7 @@ function process_billing_form() {
         WC()->session->set('order_awaiting_payment', $order->get_id());
 
         // Redirect to payment page
-        wp_redirect($order->get_checkout_payment_url());
+        wp_safe_redirect($order->get_checkout_payment_url());
         exit;
 
     } catch (Exception $e) {
@@ -236,37 +246,11 @@ function process_billing_form() {
 }
 add_action('template_redirect', 'process_billing_form');
 
-// Customize payment page
-function customize_order_review($order_id) {
-    $order = wc_get_order($order_id);
-    
-    if (!$order) {
-        return;
+// Make sure WooCommerce is loaded before processing
+function check_woocommerce_loaded() {
+    if (!function_exists('WC')) {
+        return 'WooCommerce must be installed and activated to use this feature.';
     }
-
-    echo '<div class="custom-order-review-header">';
-    echo '<h2>Order Review</h2>';
-    echo '<p>Please review your order details before making payment.</p>';
-    echo '</div>';
+    return '';
 }
-add_action('woocommerce_before_order_pay', 'customize_order_review');
-
-// Add custom styling to payment page
-function add_payment_page_styles() {
-    if (is_wc_endpoint_url('order-pay')) {
-        ?>
-        <style>
-            .custom-order-review-header {
-                margin-bottom: 30px;
-                padding: 20px;
-                background: #f8f8f8;
-                border-radius: 4px;
-            }
-            .custom-order-review-header h2 {
-                margin-top: 0;
-            }
-        </style>
-        <?php
-    }
-}
-add_action('wp_head', 'add_payment_page_styles');
+add_action('init', 'check_woocommerce_loaded');
