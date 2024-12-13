@@ -31,8 +31,6 @@ function forfx_theme_scripts_styles()
 }
 add_action('wp_enqueue_scripts', 'forfx_theme_scripts_styles', 20);
 
-add_action('template_redirect', 'custom_checkout_order_creation');
-
 add_action( 'template_redirect', 'custom_checkout_flow' );
 
 function custom_checkout_flow() {
