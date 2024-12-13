@@ -31,60 +31,61 @@ function forfx_theme_scripts_styles()
 }
 add_action('wp_enqueue_scripts', 'forfx_theme_scripts_styles', 20);
 
-add_action( 'template_redirect', 'custom_checkout_flow' );
+function create_custom_order_without_product() {
+    // Create a new order
+    $order = wc_create_order();
 
-function custom_checkout_flow() {
-    // Check if the form is submitted on the checkout page
-    if ( isset( $_POST['create_order'] ) && isset( $_POST['create_order_nonce'] ) && wp_verify_nonce( $_POST['create_order_nonce'], 'create_order_action' ) ) {
-        // Ensure the cart is not empty
-        if ( WC()->cart->is_empty() ) {
-            wc_add_notice( __( 'Your cart is empty. Please add items to your cart and try again.', 'woocommerce' ), 'error' );
-            wp_redirect( wc_get_cart_url() );
+    // Add a custom product/item to the order
+    $item = new WC_Order_Item_Product();
+    $item->set_name('Test Custom Item Name'); // Custom item name
+    $item->set_quantity(1);
+    $item->set_total(100); // Set the item price (e.g., $100)
+    $order->add_item($item);
+
+    // Set billing information (hardcoded for testing purposes)
+    $order->set_billing_first_name('John');
+    $order->set_billing_last_name('Doe');
+    $order->set_billing_email('john.doe@example.com');
+    $order->set_billing_address_1('123 Example Street');
+    $order->set_billing_city('City');
+    $order->set_billing_postcode('12345');
+    $order->set_billing_country('US');
+
+    // Set order status to pending payment
+    $order->set_status('pending', 'Awaiting payment.');
+
+    // Save the order
+    $order->calculate_totals();
+    $order->save();
+
+    return $order->get_id();
+}
+
+function custom_order_shortcode_handler() {
+    // Handle form submission
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_order'])) {
+        $order_id = create_custom_order_without_product();
+
+        if ($order_id) {
+            // Redirect to the Order Pay page
+            $order = wc_get_order($order_id);
+            $redirect_url = $order->get_checkout_payment_url();
+
+            // Use PHP header redirection
+            wp_safe_redirect($redirect_url);
             exit;
-        }
-
-        // Get billing data from the form
-        $billing_data = [
-            'billing_first_name' => sanitize_text_field( $_POST['billing_first_name'] ),
-            'billing_last_name'  => sanitize_text_field( $_POST['billing_last_name'] ),
-            'billing_email'      => sanitize_email( $_POST['billing_email'] ),
-            'billing_phone'      => sanitize_text_field( $_POST['billing_phone'] ),
-            'billing_address_1'  => sanitize_text_field( $_POST['billing_address_1'] ),
-            'billing_city'       => sanitize_text_field( $_POST['billing_city'] ),
-            'billing_postcode'   => sanitize_text_field( $_POST['billing_postcode'] ),
-            'billing_country'    => sanitize_text_field( $_POST['billing_country'] ),
-        ];
-
-        // Create a new order
-        try {
-            $order = wc_create_order();
-
-            // Add products from the cart to the order
-            foreach ( WC()->cart->get_cart() as $cart_item ) {
-                $order->add_product( $cart_item['data'], $cart_item['quantity'] );
-            }
-
-            // Set billing information
-            $order->set_address( $billing_data, 'billing' );
-
-            // Set order status to pending payment
-            $order->set_status( 'pending', __( 'Awaiting payment.', 'woocommerce' ) );
-
-            // Calculate totals and save the order
-            $order->calculate_totals();
-            $order->save();
-
-            // Clear the cart
-            WC()->cart->empty_cart();
-
-            // Redirect to the Payment Order page
-            wp_redirect( $order->get_checkout_payment_url() );
-            exit;
-
-        } catch ( Exception $e ) {
-            wc_add_notice( __( 'Failed to create order: ' . $e->getMessage(), 'woocommerce' ), 'error' );
-            wp_redirect( wc_get_cart_url() );
-            exit;
+        } else {
+            return '<p>Failed to create the order. Please try again.</p>';
         }
     }
+
+    // Display the form
+    $html = '<form method="POST">';
+    $html .= '<button type="submit" name="create_order">Create Order</button>';
+    $html .= '</form>';
+
+    return $html;
 }
+
+// Register the shortcode
+add_shortcode('create_custom_order', 'custom_order_shortcode_handler');
