@@ -77,6 +77,8 @@ function custom_order_shortcode_handler() {
             $order = wc_get_order($order_id);
             if ($order) {
                 $redirect_url = $order->get_checkout_payment_url();
+                // Ensure no output before redirection
+                ob_clean();
                 wp_safe_redirect($redirect_url);
                 exit;
             }
@@ -95,4 +97,3 @@ function custom_order_shortcode_handler() {
 
 // Register the shortcode
 add_shortcode('create_custom_order', 'custom_order_shortcode_handler');
-
