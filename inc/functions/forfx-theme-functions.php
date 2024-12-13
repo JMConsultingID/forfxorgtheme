@@ -9,27 +9,11 @@
  */
 /**
  * Custom Checkout Flow
- * Handles custom billing form and order creation
+ * Uses WooCommerce native session handling
  */
-
-// Initialize session handling early
-add_action('init', function() {
-    if (!session_id() && !headers_sent()) {
-        session_start();
-    }
-});
 
 function custom_billing_form_shortcode() {
     ob_start();
-
-    // Store form submission status in session if needed
-    if (isset($_SESSION['form_submission_status'])) {
-        $status = $_SESSION['form_submission_status'];
-        if ($status['error']) {
-            wc_add_notice($status['message'], 'error');
-        }
-        unset($_SESSION['form_submission_status']);
-    }
 
     // Check if cart is empty
     if (WC()->cart->is_empty()) {
@@ -54,7 +38,40 @@ function custom_billing_form_shortcode() {
         <div class="cart-review-section">
             <h3>Cart Review</h3>
             <table class="cart-review-table">
-                <!-- [Previous table code remains the same] -->
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Quantity</th>
+                        <th>Price</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php
+                    foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item) {
+                        $product = $cart_item['data'];
+                        $quantity = $cart_item['quantity'];
+                        ?>
+                        <tr>
+                            <td><?php echo wp_kses_post($product->get_name()); ?></td>
+                            <td><?php echo esc_html($quantity); ?></td>
+                            <td><?php echo wp_kses_post($product->get_price_html()); ?></td>
+                            <td><?php echo wp_kses_post(WC()->cart->get_product_subtotal($product, $quantity)); ?></td>
+                        </tr>
+                        <?php
+                    }
+                    ?>
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <th colspan="3">Subtotal</th>
+                        <td><?php echo wp_kses_post(WC()->cart->get_cart_subtotal()); ?></td>
+                    </tr>
+                    <tr>
+                        <th colspan="3">Total</th>
+                        <td><?php echo wp_kses_post(WC()->cart->get_total()); ?></td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
 
@@ -62,6 +79,7 @@ function custom_billing_form_shortcode() {
         <form id="custom-billing-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
             <?php wp_nonce_field('process_billing_form', 'billing_form_nonce'); ?>
             <input type="hidden" name="action" value="process_custom_billing">
+            <input type="hidden" name="return_url" value="<?php echo esc_url(wp_get_referer()); ?>">
 
             <div class="billing-fields">
                 <h3>Billing Details</h3>
@@ -117,23 +135,20 @@ add_shortcode('custom_billing_form', 'custom_billing_form_shortcode');
 
 // Handle form submission through admin-post.php
 function handle_billing_form_submission() {
+    // Get return URL
+    $return_url = isset($_POST['return_url']) ? esc_url_raw($_POST['return_url']) : wc_get_checkout_url();
+
     // Verify nonce
     if (!isset($_POST['billing_form_nonce']) || !wp_verify_nonce($_POST['billing_form_nonce'], 'process_billing_form')) {
-        $_SESSION['form_submission_status'] = array(
-            'error' => true,
-            'message' => 'Security check failed.'
-        );
-        wp_redirect(wp_get_referer());
+        wc_add_notice('Security check failed.', 'error');
+        wp_safe_redirect($return_url);
         exit;
     }
 
     // Check if cart is empty
     if (WC()->cart->is_empty()) {
-        $_SESSION['form_submission_status'] = array(
-            'error' => true,
-            'message' => 'Your cart is empty. Cannot proceed with checkout.'
-        );
-        wp_redirect(wp_get_referer());
+        wc_add_notice('Your cart is empty. Cannot proceed with checkout.', 'error');
+        wp_safe_redirect($return_url);
         exit;
     }
 
@@ -142,19 +157,15 @@ function handle_billing_form_submission() {
     $billing_fields = $checkout->get_checkout_fields('billing');
 
     // Validate required fields
-    $errors = array();
     foreach ($billing_fields as $key => $field) {
         if (isset($field['required']) && $field['required'] && empty($_POST[$key])) {
-            $errors[] = sprintf('%s is required', $field['label']);
+            wc_add_notice(sprintf('%s is required', $field['label']), 'error');
         }
     }
 
-    if (!empty($errors)) {
-        $_SESSION['form_submission_status'] = array(
-            'error' => true,
-            'message' => implode(', ', $errors)
-        );
-        wp_redirect(wp_get_referer());
+    // If validation errors exist, return
+    if (wc_notice_count('error') > 0) {
+        wp_safe_redirect($return_url);
         exit;
     }
 
@@ -213,15 +224,12 @@ function handle_billing_form_submission() {
         WC()->session->set('order_awaiting_payment', $order->get_id());
 
         // Redirect to payment page
-        wp_redirect($order->get_checkout_payment_url());
+        wp_safe_redirect($order->get_checkout_payment_url());
         exit;
 
     } catch (Exception $e) {
-        $_SESSION['form_submission_status'] = array(
-            'error' => true,
-            'message' => $e->getMessage()
-        );
-        wp_redirect(wp_get_referer());
+        wc_add_notice($e->getMessage(), 'error');
+        wp_safe_redirect($return_url);
         exit;
     }
 }
