@@ -8,12 +8,42 @@
  * @package ForfxTheme
  */
 /**
- * Custom Checkout Flow with simplified WooCommerce integration
+ * Custom Checkout Flow with proper WooCommerce initialization
  */
 
 function handle_billing_form_submission() {
+    // Define WooCommerce path
+    if (!defined('WC_ABSPATH')) {
+        define('WC_ABSPATH', dirname(WC_PLUGIN_FILE) . '/');
+    }
+
+    // Load WooCommerce if not loaded
+    require_once WC_ABSPATH . 'includes/class-woocommerce.php';
+    require_once WC_ABSPATH . 'includes/wc-cart-functions.php';
+    require_once WC_ABSPATH . 'includes/class-wc-cart.php';
+    require_once WC_ABSPATH . 'includes/class-wc-session-handler.php';
+
+    // Ensure WC() is available
+    if (!function_exists('WC')) {
+        return;
+    }
+
     // Get return URL
     $return_url = isset($_POST['return_url']) ? esc_url_raw($_POST['return_url']) : home_url();
+
+    // Initialize WooCommerce
+    WC()->frontend_includes();
+    
+    // Initialize session
+    if (!WC()->session) {
+        WC()->session = new WC_Session_Handler();
+        WC()->session->init();
+    }
+
+    // Initialize cart
+    if (!WC()->cart) {
+        WC()->initialize_cart();
+    }
 
     // Verify nonce
     if (!isset($_POST['billing_form_nonce']) || !wp_verify_nonce($_POST['billing_form_nonce'], 'process_billing_form')) {
@@ -21,84 +51,85 @@ function handle_billing_form_submission() {
         exit;
     }
 
-    // Basic validation
-    $required_fields = array('billing_first_name', 'billing_last_name', 'billing_email', 'billing_phone');
-    foreach ($required_fields as $field) {
-        if (empty($_POST[$field])) {
-            wp_redirect(add_query_arg('checkout_error', 'required_fields', $return_url));
-            exit;
-        }
-    }
-
     try {
+        // Get cart data from session
+        $cart_items = WC()->session->get('cart');
+        if (empty($cart_items)) {
+            throw new Exception('Cart is empty');
+        }
+
         // Create order
-        $order = new WC_Order();
+        $order = wc_create_order();
         
         // Set customer data
         $order->set_customer_id(get_current_user_id());
         $order->set_created_via('custom_checkout');
-        $order->set_payment_method('');
+        
+        // Add products from session cart
+        foreach ($cart_items as $cart_item_key => $cart_item) {
+            if (!isset($cart_item['product_id'])) {
+                continue;
+            }
+
+            $product = wc_get_product($cart_item['product_id']);
+            if (!$product) {
+                continue;
+            }
+
+            $quantity = isset($cart_item['quantity']) ? $cart_item['quantity'] : 1;
+            
+            $order->add_product(
+                $product,
+                $quantity
+            );
+        }
+
+        // Set billing address
+        $billing_fields = [
+            'first_name', 'last_name', 'company', 'email', 'phone',
+            'address_1', 'address_2', 'city', 'state', 'postcode', 'country'
+        ];
+
+        $billing_address = [];
+        foreach ($billing_fields as $field) {
+            $post_key = 'billing_' . $field;
+            if (!empty($_POST[$post_key])) {
+                $billing_address[$field] = sanitize_text_field($_POST[$post_key]);
+            }
+        }
 
         // Set addresses
-        $billing_address = array(
-            'first_name' => isset($_POST['billing_first_name']) ? sanitize_text_field($_POST['billing_first_name']) : '',
-            'last_name'  => isset($_POST['billing_last_name']) ? sanitize_text_field($_POST['billing_last_name']) : '',
-            'company'    => isset($_POST['billing_company']) ? sanitize_text_field($_POST['billing_company']) : '',
-            'email'      => isset($_POST['billing_email']) ? sanitize_email($_POST['billing_email']) : '',
-            'phone'      => isset($_POST['billing_phone']) ? sanitize_text_field($_POST['billing_phone']) : '',
-            'address_1'  => isset($_POST['billing_address_1']) ? sanitize_text_field($_POST['billing_address_1']) : '',
-            'address_2'  => isset($_POST['billing_address_2']) ? sanitize_text_field($_POST['billing_address_2']) : '',
-            'city'       => isset($_POST['billing_city']) ? sanitize_text_field($_POST['billing_city']) : '',
-            'state'      => isset($_POST['billing_state']) ? sanitize_text_field($_POST['billing_state']) : '',
-            'postcode'   => isset($_POST['billing_postcode']) ? sanitize_text_field($_POST['billing_postcode']) : '',
-            'country'    => isset($_POST['billing_country']) ? sanitize_text_field($_POST['billing_country']) : ''
-        );
-
-        $order->set_address($billing_address, 'billing');
-        $order->set_address($billing_address, 'shipping');
-
-        // Get cart items manually
-        foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item) {
-            $product = wc_get_product($cart_item['product_id']);
-            if ($product) {
-                $order->add_product(
-                    $product,
-                    $cart_item['quantity'],
-                    array(
-                        'total' => $cart_item['line_total'],
-                        'subtotal' => $cart_item['line_subtotal'],
-                        'variation' => $cart_item['variation']
-                    )
-                );
-            }
+        if (!empty($billing_address)) {
+            $order->set_address($billing_address, 'billing');
+            $order->set_address($billing_address, 'shipping');
         }
 
         // Calculate totals
         $order->calculate_totals();
         
-        // Set pending status
+        // Set status to pending
         $order->set_status('pending');
         
         // Save the order
         $order->save();
-        
-        // Empty the cart
-        WC()->cart->empty_cart();
-        
-        // Set order ID in session
+
+        // Store order ID in session
         WC()->session->set('order_awaiting_payment', $order->get_id());
+
+        // Clear cart
+        WC()->cart->empty_cart();
 
         // Redirect to payment page
         wp_redirect($order->get_checkout_payment_url());
         exit;
 
     } catch (Exception $e) {
+        error_log('Custom checkout error: ' . $e->getMessage());
         wp_redirect(add_query_arg('checkout_error', urlencode($e->getMessage()), $return_url));
         exit;
     }
 }
 
-// Add the actions for both logged in and non-logged in users
 add_action('admin_post_process_custom_billing', 'handle_billing_form_submission');
 add_action('admin_post_nopriv_process_custom_billing', 'handle_billing_form_submission');
 
