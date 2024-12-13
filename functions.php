@@ -105,6 +105,21 @@ function set_default_payment_method($available_gateways) {
 add_filter('woocommerce_available_payment_gateways', 'set_default_payment_method', 100);
 
 /**
+ * Add default payment method to checkout data
+ */
+function add_default_payment_method_to_checkout_data($data) {
+    if (empty($data['payment_method'])) {
+        $available_gateways = WC()->payment_gateways->get_available_payment_gateways();
+        if (!empty($available_gateways)) {
+            $first_gateway = reset($available_gateways);
+            $data['payment_method'] = $first_gateway->id;
+        }
+    }
+    return $data;
+}
+add_filter('woocommerce_checkout_posted_data', 'add_default_payment_method_to_checkout_data');
+
+/**
  * Handle order creation and redirect
  */
 function handle_checkout_order_creation($order_id) {
@@ -136,21 +151,6 @@ function handle_checkout_order_creation($order_id) {
 add_action('woocommerce_checkout_order_processed', 'handle_checkout_order_creation', 10);
 
 /**
- * Add default payment method to checkout data
- */
-function add_default_payment_method_to_checkout_data($data) {
-    if (empty($data['payment_method'])) {
-        $available_gateways = WC()->payment_gateways->get_available_payment_gateways();
-        if (!empty($available_gateways)) {
-            $first_gateway = reset($available_gateways);
-            $data['payment_method'] = $first_gateway->id;
-        }
-    }
-    return $data;
-}
-add_filter('woocommerce_checkout_posted_data', 'add_default_payment_method_to_checkout_data');
-
-/**
  * Remove unnecessary checkout fields
  */
 function remove_unnecessary_checkout_fields($fields) {
@@ -164,4 +164,126 @@ function remove_unnecessary_checkout_fields($fields) {
 }
 add_filter('woocommerce_checkout_fields', 'remove_unnecessary_checkout_fields');
 
-// Previous custom_order_review function remains the same
+/**
+ * Modify checkout button text
+ */
+function modify_checkout_button_text($button_text) {
+    return __('Next Step', 'woocommerce');
+}
+add_filter('woocommerce_order_button_text', 'modify_checkout_button_text');
+
+/**
+ * Add custom styles to head
+ */
+function add_custom_checkout_styles() {
+    if (is_checkout()) {
+        ?>
+        <style>
+            /* Custom checkout styles */
+            .custom-checkout-container {
+                max-width: 800px;
+                margin: 0 auto;
+                padding: 20px;
+            }
+            
+            .cart-review-section,
+            .billing-section {
+                background: #fff;
+                padding: 20px;
+                margin-bottom: 20px;
+                border-radius: 5px;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            }
+            
+            .cart-review-section h3,
+            .billing-section h3 {
+                margin-top: 0;
+                padding-bottom: 10px;
+                border-bottom: 1px solid #eee;
+            }
+            
+            .place-order {
+                text-align: right;
+                margin-top: 20px;
+            }
+            
+            #place_order {
+                background-color: #2196F3;
+                color: white;
+                padding: 15px 30px;
+                font-size: 16px;
+                border-radius: 4px;
+                border: none;
+            }
+            
+            #place_order:hover {
+                background-color: #1976D2;
+            }
+            
+            /* Hide payment methods radio but keep the input for form submission */
+            .woocommerce-checkout-payment ul.payment_methods {
+                display: none !important;
+            }
+            
+            /* Hide unnecessary elements */
+            .woocommerce-shipping-fields,
+            .woocommerce-additional-fields {
+                display: none !important;
+            }
+            
+            .custom-order-review {
+                width: 100%;
+                margin-bottom: 20px;
+            }
+            
+            .custom-order-review th,
+            .custom-order-review td {
+                padding: 12px;
+                border-bottom: 1px solid #eee;
+            }
+            
+            .custom-order-review tfoot tr:last-child {
+                border-top: 2px solid #eee;
+                font-weight: bold;
+            }
+        </style>
+        <?php
+    }
+}
+add_action('wp_head', 'add_custom_checkout_styles');
+
+/**
+ * Add custom body class to checkout
+ */
+function add_checkout_body_class($classes) {
+    if (is_checkout()) {
+        $classes[] = 'custom-checkout-page';
+    }
+    return $classes;
+}
+add_filter('body_class', 'add_checkout_body_class');
+
+/**
+ * Ensure WooCommerce cart is not empty
+ */
+function ensure_cart_not_empty() {
+    if (is_checkout() && WC()->cart->is_empty()) {
+        wp_redirect(wc_get_cart_url());
+        exit;
+    }
+}
+add_action('template_redirect', 'ensure_cart_not_empty');
+
+/**
+ * Debug checkout errors (uncomment when needed)
+ */
+/*
+function debug_checkout_errors($data, $errors) {
+    if (!empty($errors->get_error_messages())) {
+        foreach ($errors->get_error_messages() as $message) {
+            error_log('Checkout Error: ' . $message);
+        }
+    }
+}
+add_action('woocommerce_after_checkout_validation', 'debug_checkout_errors', 10, 2);
+*/
