@@ -15,8 +15,6 @@
  * @version 9.4.0
  */
 
-// form-checkout.php
-
 if (!defined('ABSPATH')) {
     exit;
 }
@@ -47,8 +45,18 @@ if (!$checkout->is_registration_enabled() && $checkout->is_registration_required
             <!-- Billing Section -->
             <div class="billing-section">
                 <h3><?php esc_html_e('Billing Details', 'woocommerce'); ?></h3>
-                <?php do_action('woocommerce_checkout_before_customer_details'); ?>
-                <?php do_action('woocommerce_checkout_billing'); ?>
+                <div class="woocommerce-billing-fields">
+                    <?php do_action('woocommerce_before_checkout_billing_form', $checkout); ?>
+                    <?php foreach ($checkout->get_checkout_fields('billing') as $key => $field) : ?>
+                        <?php woocommerce_form_field($key, $field, $checkout->get_value($key)); ?>
+                    <?php endforeach; ?>
+                    <?php do_action('woocommerce_after_checkout_billing_form', $checkout); ?>
+                </div>
+            </div>
+
+            <!-- Terms and Conditions -->
+            <div class="terms-section">
+                <?php woocommerce_checkout_terms_and_conditions(); ?>
             </div>
 
             <!-- Hidden Payment Section -->
@@ -64,8 +72,6 @@ if (!$checkout->is_registration_enabled() && $checkout->is_registration_required
                     ?>
                     <br/><button type="submit" class="button alt" name="woocommerce_checkout_update_totals" value="<?php esc_attr_e('Update totals', 'woocommerce'); ?>"><?php esc_html_e('Update totals', 'woocommerce'); ?></button>
                 </noscript>
-
-                <?php woocommerce_checkout_payment(); ?>
 
                 <?php wp_nonce_field('woocommerce-process_checkout', 'woocommerce-process-checkout-nonce'); ?>
 
@@ -89,7 +95,8 @@ if (!$checkout->is_registration_enabled() && $checkout->is_registration_required
 }
 
 .cart-review-section,
-.billing-section {
+.billing-section,
+.terms-section {
     background: #fff;
     padding: 20px;
     margin-bottom: 20px;
@@ -131,5 +138,22 @@ if (!$checkout->is_registration_enabled() && $checkout->is_registration_required
 .woocommerce-shipping-fields,
 .woocommerce-additional-fields {
     display: none !important;
+}
+
+/* Remove duplicate privacy policy text */
+.woocommerce-privacy-policy-text {
+    display: none;
+}
+.terms-section .woocommerce-privacy-policy-text {
+    display: block;
+}
+
+/* Style terms and conditions checkbox */
+.terms-section {
+    margin-top: 20px;
+}
+.terms-section .woocommerce-terms-and-conditions-checkbox-text {
+    display: inline-block;
+    margin-left: 5px;
 }
 </style>
