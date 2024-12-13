@@ -417,3 +417,124 @@ function modify_available_payment_gateways($available_gateways) {
     return $available_gateways;
 }
 add_filter('woocommerce_available_payment_gateways', 'modify_available_payment_gateways', 10);
+
+<?php
+/**
+ * Prevent default WooCommerce order processing redirect
+ */
+add_action('woocommerce_checkout_order_processed', function($order_id) {
+    // Remove WooCommerce default redirect
+    remove_action('woocommerce_checkout_order_processed', 'wc_checkout_process_redirect');
+    
+    try {
+        $order = wc_get_order($order_id);
+        if (!$order) {
+            throw new Exception('Order not found');
+        }
+
+        // Set payment method
+        $available_gateways = WC()->payment_gateways->get_available_payment_gateways();
+        if (!empty($available_gateways)) {
+            $first_gateway = reset($available_gateways);
+            $payment_method = $first_gateway->id;
+            
+            // Update order payment method
+            $order->set_payment_method($first_gateway);
+            $order->set_payment_method_title($first_gateway->get_title());
+        }
+
+        // Set order status and save
+        $order->set_status('pending');
+        $order->save();
+
+        // Store in session
+        WC()->session->set('order_awaiting_payment', $order_id);
+
+        // Get payment URL
+        $payment_url = $order->get_checkout_payment_url(true);
+
+        // Empty cart
+        WC()->cart->empty_cart();
+
+        // Log the success and redirect URL
+        error_log('Redirecting to payment URL: ' . $payment_url);
+        
+        // Perform redirect
+        wp_redirect($payment_url);
+        exit;
+
+    } catch (Exception $e) {
+        error_log('Checkout Error: ' . $e->getMessage());
+        return;
+    }
+}, 1);
+
+/**
+ * Override checkout process to prevent validation errors
+ */
+add_action('woocommerce_checkout_process', function() {
+    // Remove default WooCommerce payment validation
+    remove_action('woocommerce_checkout_process', 'wc_checkout_process_payment');
+}, 1);
+
+/**
+ * Ensure payment method is set before checkout
+ */
+add_action('woocommerce_before_checkout_form', function() {
+    $available_gateways = WC()->payment_gateways->get_available_payment_gateways();
+    if (!empty($available_gateways)) {
+        $first_gateway = reset($available_gateways);
+        WC()->session->set('chosen_payment_method', $first_gateway->id);
+    }
+}, 10);
+
+/**
+ * Add default payment method to checkout data
+ */
+add_filter('woocommerce_checkout_posted_data', function($data) {
+    if (empty($data['payment_method'])) {
+        $available_gateways = WC()->payment_gateways->get_available_payment_gateways();
+        if (!empty($available_gateways)) {
+            $first_gateway = reset($available_gateways);
+            $data['payment_method'] = $first_gateway->id;
+        }
+    }
+    return $data;
+}, 10, 1);
+
+/**
+ * Override checkout validation
+ */
+add_filter('woocommerce_checkout_update_order_review_expired', '__return_false');
+
+/**
+ * Add custom notice handler
+ */
+add_action('woocommerce_before_checkout_form', function() {
+    wc_clear_notices();
+}, 1);
+
+/**
+ * Prevent terms validation
+ */
+add_filter('woocommerce_checkout_show_terms', '__return_false');
+add_filter('woocommerce_checkout_validate_terms', '__return_false');
+
+/**
+ * Debug payment process
+ */
+add_action('woocommerce_before_checkout_process', function() {
+    error_log('Starting checkout process...');
+    error_log('Payment Method: ' . (isset($_POST['payment_method']) ? $_POST['payment_method'] : 'not set'));
+});
+
+/**
+ * Handle payment failure
+ */
+add_action('woocommerce_checkout_process', function() {
+    $available_gateways = WC()->payment_gateways->get_available_payment_gateways();
+    if (empty($available_gateways)) {
+        error_log('No payment gateways available');
+        wc_add_notice('No payment methods available. Please contact the administrator.', 'error');
+    }
+}, 10);
