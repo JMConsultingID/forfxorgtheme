@@ -418,7 +418,6 @@ function modify_available_payment_gateways($available_gateways) {
 }
 add_filter('woocommerce_available_payment_gateways', 'modify_available_payment_gateways', 10);
 
-<?php
 /**
  * Prevent default WooCommerce order processing redirect
  */
