@@ -168,9 +168,16 @@ function process_billing_form() {
         return;
     }
 
-    try {
+   try {
         // Create new order
         $order = wc_create_order();
+
+        // Set created via
+        $order->set_created_via('checkout');
+
+        // Set customer id - if logged in use current user, otherwise 0 for guest
+        $customer_id = get_current_user_id();
+        $order->set_customer_id($customer_id);
 
         // Add cart items to order
         foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item) {
@@ -187,15 +194,21 @@ function process_billing_form() {
             );
         }
 
-        // Set billing data
+        // Set billing data properly
+        $billing_address = array();
         foreach ($billing_fields as $key => $field) {
             if (!empty($_POST[$key])) {
-                $setter = 'set_' . str_replace('billing_', '', $key);
-                if (is_callable([$order, $setter])) {
-                    $order->$setter(wc_clean($_POST[$key]));
-                }
+                // Remove 'billing_' prefix for the array key
+                $clean_key = str_replace('billing_', '', $key);
+                $billing_address[$clean_key] = wc_clean($_POST[$key]);
             }
         }
+        
+        // Set billing address as array
+        $order->set_address($billing_address, 'billing');
+        
+        // Optional: Copy billing address to shipping if needed
+        $order->set_address($billing_address, 'shipping');
 
         // Calculate and set totals
         $order->calculate_totals();
