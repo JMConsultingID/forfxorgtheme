@@ -1,75 +1,34 @@
 <?php
 /**
- * Checkout Form
- *
- * This template can be overridden by copying it to yourtheme/woocommerce/checkout/form-checkout.php.
- *
- * HOWEVER, on occasion WooCommerce will need to update template files and you
- * (the theme developer) will need to copy the new files to your theme to
- * maintain compatibility. We try to do this as little as possible, but it does
- * happen. When this occurs the version of the template file will be bumped and
- * the readme will list any important changes.
- *
- * @see https://woocommerce.com/document/template-structure/
- * @package WooCommerce\Templates
- * @version 9.4.0
+ * Checkout Form Template
+ * Save as: woocommerce/checkout/form-checkout.php in your child theme
  */
-
-defined('ABSPATH') || exit;
-
-do_action('woocommerce_before_checkout_form', $checkout);
-
-if (!$checkout) {
-    return;
-}
-
-// Multi-step Checkout
 ?>
-<div id="multi-step-checkout">
-    <div id="step-1" class="checkout-step active">
-        <h2><?php esc_html_e('Billing Details', 'woocommerce'); ?></h2>
-        <?php wc_get_template('checkout/form-billing.php'); ?>
-        <button type="button" id="next-to-payment" class="button alt">
-            <?php esc_html_e('Next', 'woocommerce'); ?>
-        </button>
+
+<form name="checkout" method="post" class="checkout woocommerce-checkout" action="<?php echo esc_url(wc_get_checkout_url()); ?>" enctype="multipart/form-data">
+
+    <?php if ($checkout->get_checkout_fields()) : ?>
+
+        <?php do_action('woocommerce_checkout_before_customer_details'); ?>
+
+        <div class="col2-set" id="customer_details">
+            <div class="col-1">
+                <?php do_action('woocommerce_checkout_billing'); ?>
+            </div>
+        </div>
+
+        <?php do_action('woocommerce_checkout_after_customer_details'); ?>
+
+    <?php endif; ?>
+
+    <?php do_action('woocommerce_checkout_before_order_review_heading'); ?>
+    
+    <?php do_action('woocommerce_checkout_before_order_review'); ?>
+
+    <div id="order_review" class="woocommerce-checkout-review-order">
+        <?php do_action('woocommerce_checkout_order_review'); ?>
     </div>
-</div>
 
-<script>
-    jQuery(document).ready(function($) {
-        $('#next-to-payment').on('click', function() {
-            // Navigasi ke step berikutnya
-            const step1 = $('#step-1');
-            step1.addClass('completed').hide();
+    <?php do_action('woocommerce_checkout_after_order_review'); ?>
 
-            // Proses order creation melalui AJAX
-            const data = {
-                action: 'create_order',
-                nonce: '<?php echo wp_create_nonce('create_order_nonce'); ?>'
-            };
-
-            $.post('<?php echo admin_url('admin-ajax.php'); ?>', data, function(response) {
-                if (response.success) {
-                    window.location.href = response.data.redirect; // Redirect ke Payment Page
-                } else {
-                    alert(response.data.message || 'Error occurred.');
-                }
-            });
-        });
-    });
-</script>
-
-<style>
-    /* Styling Multi-Step */
-    .checkout-step {
-        display: none;
-    }
-    .checkout-step.active {
-        display: block;
-    }
-    .checkout-step.completed {
-        display: none;
-    }
-</style>
-
-<?php do_action('woocommerce_after_checkout_form', $checkout); ?>
+</form>
