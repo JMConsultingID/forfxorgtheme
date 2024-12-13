@@ -166,8 +166,6 @@ function custom_billing_form_shortcode() {
             background-color: #555;
         }
     </style>
-    <!-- Add meta refresh to redirect main window -->
-    <meta http-equiv="refresh" content="1;url=<?php echo esc_url(home_url()); ?>">
     <?php
 
     return ob_get_clean();
