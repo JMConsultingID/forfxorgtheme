@@ -31,6 +31,12 @@ function forfx_theme_scripts_styles()
 }
 add_action('wp_enqueue_scripts', 'forfx_theme_scripts_styles', 20);
 
+// Add WooCommerce support
+function theme_add_woocommerce_support() {
+    add_theme_support('woocommerce');
+}
+add_action('after_setup_theme', 'theme_add_woocommerce_support');
+
 /**
  * Custom Functions for Multi-Step Checkout
  */

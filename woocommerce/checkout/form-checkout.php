@@ -8,6 +8,11 @@
 
 defined('ABSPATH') || exit;
 
+// Get checkout object
+$checkout = WC()->checkout();
+
+do_action('woocommerce_before_checkout_form', $checkout);
+
 // Display checkout steps
 ?>
 <div class="checkout-steps">
@@ -17,11 +22,16 @@ defined('ABSPATH') || exit;
 </div>
 
 <?php
-do_action('woocommerce_before_checkout_form', $checkout);
-
 // If checkout registration is disabled and not logged in, the user cannot checkout
 if (!$checkout->is_registration_enabled() && $checkout->is_registration_required() && !is_user_logged_in()) {
     echo esc_html(apply_filters('woocommerce_checkout_must_be_logged_in_message', __('You must be logged in to checkout.', 'woocommerce')));
+    return;
+}
+
+// Check if there are items in the cart
+if (WC()->cart->is_empty()) {
+    // Cart is empty
+    echo '<div class="woocommerce-info">' . esc_html__('Your cart is currently empty.', 'woocommerce') . '</div>';
     return;
 }
 ?>
