@@ -33,51 +33,60 @@ add_action('wp_enqueue_scripts', 'forfx_theme_scripts_styles', 20);
 
 add_action('template_redirect', 'custom_checkout_order_creation');
 
-function custom_checkout_order_creation() {
-    if (is_checkout() && empty($_GET['order-pay'])) {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['billing_first_name'])) {
-            // Ensure the cart is not empty
-            if (WC()->cart->is_empty()) {
-                wc_add_notice(__('Your cart is empty. Please add items to your cart and try again.', 'woocommerce'), 'error');
-                wp_redirect(wc_get_cart_url());
-                exit;
+add_action( 'template_redirect', 'custom_checkout_flow' );
+
+function custom_checkout_flow() {
+    // Check if the form is submitted on the checkout page
+    if ( isset( $_POST['create_order'] ) && isset( $_POST['create_order_nonce'] ) && wp_verify_nonce( $_POST['create_order_nonce'], 'create_order_action' ) ) {
+        // Ensure the cart is not empty
+        if ( WC()->cart->is_empty() ) {
+            wc_add_notice( __( 'Your cart is empty. Please add items to your cart and try again.', 'woocommerce' ), 'error' );
+            wp_redirect( wc_get_cart_url() );
+            exit;
+        }
+
+        // Get billing data from the form
+        $billing_data = [
+            'billing_first_name' => sanitize_text_field( $_POST['billing_first_name'] ),
+            'billing_last_name'  => sanitize_text_field( $_POST['billing_last_name'] ),
+            'billing_email'      => sanitize_email( $_POST['billing_email'] ),
+            'billing_phone'      => sanitize_text_field( $_POST['billing_phone'] ),
+            'billing_address_1'  => sanitize_text_field( $_POST['billing_address_1'] ),
+            'billing_city'       => sanitize_text_field( $_POST['billing_city'] ),
+            'billing_postcode'   => sanitize_text_field( $_POST['billing_postcode'] ),
+            'billing_country'    => sanitize_text_field( $_POST['billing_country'] ),
+        ];
+
+        // Create a new order
+        try {
+            $order = wc_create_order();
+
+            // Add products from the cart to the order
+            foreach ( WC()->cart->get_cart() as $cart_item ) {
+                $order->add_product( $cart_item['data'], $cart_item['quantity'] );
             }
 
-            try {
-                // Create a new order
-                $order = wc_create_order();
+            // Set billing information
+            $order->set_address( $billing_data, 'billing' );
 
-                // Add products to the order
-                foreach (WC()->cart->get_cart() as $cart_item) {
-                    $order->add_product($cart_item['data'], $cart_item['quantity']);
-                }
+            // Set order status to pending payment
+            $order->set_status( 'pending', __( 'Awaiting payment.', 'woocommerce' ) );
 
-                // Set billing details
-                $billing_data = [
-                    'billing_first_name' => sanitize_text_field($_POST['billing_first_name']),
-                    'billing_last_name'  => sanitize_text_field($_POST['billing_last_name']),
-                    'billing_email'      => sanitize_email($_POST['billing_email']),
-                    'billing_phone'      => sanitize_text_field($_POST['billing_phone']),
-                    'billing_address_1'  => sanitize_text_field($_POST['billing_address_1']),
-                    'billing_city'       => sanitize_text_field($_POST['billing_city']),
-                    'billing_postcode'   => sanitize_text_field($_POST['billing_postcode']),
-                    'billing_country'    => sanitize_text_field($_POST['billing_country']),
-                ];
-                $order->set_address($billing_data, 'billing');
+            // Calculate totals and save the order
+            $order->calculate_totals();
+            $order->save();
 
-                // Finalize the order
-                $order->calculate_totals();
-                $order->update_status('pending', __('Order created successfully.', 'woocommerce'));
+            // Clear the cart
+            WC()->cart->empty_cart();
 
-                // Redirect to payment page
-                wp_redirect($order->get_checkout_payment_url());
-                exit;
+            // Redirect to the Payment Order page
+            wp_redirect( $order->get_checkout_payment_url() );
+            exit;
 
-            } catch (Exception $e) {
-                wc_add_notice(__('Failed to create the order: ' . $e->getMessage(), 'woocommerce'), 'error');
-                wp_redirect(wc_get_cart_url());
-                exit;
-            }
+        } catch ( Exception $e ) {
+            wc_add_notice( __( 'Failed to create order: ' . $e->getMessage(), 'woocommerce' ), 'error' );
+            wp_redirect( wc_get_cart_url() );
+            exit;
         }
     }
 }
