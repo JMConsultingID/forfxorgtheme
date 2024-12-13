@@ -31,7 +31,6 @@ function forfx_theme_scripts_styles()
 }
 add_action('wp_enqueue_scripts', 'forfx_theme_scripts_styles', 20);
 
-<?php
 /**
  * Custom WooCommerce Checkout Modifications
  * Add to your child theme's functions.php
