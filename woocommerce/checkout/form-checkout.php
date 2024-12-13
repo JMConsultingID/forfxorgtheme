@@ -14,169 +14,80 @@
  * @package WooCommerce\Templates
  * @version 9.4.0
  */
-
-if (!defined('ABSPATH')) {
-    exit;
+/**
+ * Remove terms and conditions completely
+ */
+function remove_terms_and_conditions() {
+    // Remove terms and conditions checkbox requirement
+    add_filter('woocommerce_checkout_show_terms', '__return_false');
+    // Remove privacy policy text
+    remove_action('woocommerce_checkout_terms_and_conditions', 'wc_checkout_privacy_policy_text', 20);
 }
+add_action('init', 'remove_terms_and_conditions');
 
-do_action('woocommerce_before_checkout_form', $checkout);
-
-// If checkout registration is disabled and not logged in, the user cannot checkout
-if (!$checkout->is_registration_enabled() && $checkout->is_registration_required() && !is_user_logged_in()) {
-    echo esc_html(apply_filters('woocommerce_checkout_must_be_logged_in_message', __('You must be logged in to checkout.', 'woocommerce')));
-    return;
+/**
+ * Debug checkout errors
+ */
+function debug_checkout_errors($data, $errors) {
+    if (!empty($errors->get_error_messages())) {
+        foreach ($errors->get_error_messages() as $message) {
+            error_log('Checkout Error: ' . $message);
+        }
+    }
 }
-?>
+add_action('woocommerce_after_checkout_validation', 'debug_checkout_errors', 10, 2);
 
-<form name="checkout" method="post" class="checkout woocommerce-checkout" action="<?php echo esc_url(wc_get_checkout_url()); ?>" enctype="multipart/form-data">
-
-    <?php if ($checkout->get_checkout_fields()) : ?>
-
-        <div class="custom-checkout-container">
-            <!-- Cart Review Section -->
-            <div class="cart-review-section">
-                <h3><?php esc_html_e('Order Summary', 'woocommerce'); ?></h3>
-                <?php do_action('woocommerce_checkout_before_order_review'); ?>
-                <div id="order_review" class="woocommerce-checkout-review-order">
-                    <?php do_action('custom_checkout_order_review'); ?>
-                </div>
-            </div>
-
-            <!-- Billing Section -->
-            <div class="billing-section">
-                <h3><?php esc_html_e('Billing Details', 'woocommerce'); ?></h3>
-                <div class="woocommerce-billing-fields">
-                    <?php do_action('woocommerce_before_checkout_billing_form', $checkout); ?>
-                    <?php foreach ($checkout->get_checkout_fields('billing') as $key => $field) : ?>
-                        <?php woocommerce_form_field($key, $field, $checkout->get_value($key)); ?>
-                    <?php endforeach; ?>
-                    <?php do_action('woocommerce_after_checkout_billing_form', $checkout); ?>
-                </div>
-            </div>
-
-            <!-- Hidden Payment Section -->
-            <div id="payment" class="woocommerce-checkout-payment" style="display: none;">
-                <?php woocommerce_checkout_payment(); ?>
-            </div>
-
-            <!-- Terms and Next Step Button -->
-			<div class="form-row place-order">
-			    <?php if (wc_get_page_id('terms') > 0) : ?>
-			        <div class="terms-section">
-			            <!-- Privacy Policy Text -->
-			            <div class="woocommerce-privacy-policy-text">
-			                <p><?php
-			                    printf(
-			                        __('Your personal data will be used to process your order, support your experience throughout this website, and for other purposes described in our %s.', 'woocommerce'),
-			                        sprintf(
-			                            '<a href="%s" class="woocommerce-privacy-policy-link" target="_blank">%s</a>',
-			                            esc_url(get_privacy_policy_url()),
-			                            __('privacy policy', 'woocommerce')
-			                        )
-			                    );
-			                ?></p>
-			            </div>
-
-			            <!-- Terms Checkbox -->
-			            <p class="form-row validate-required">
-			                <label class="woocommerce-form__label woocommerce-form__label-for-checkbox checkbox">
-			                    <input type="checkbox" class="woocommerce-form__input woocommerce-form__input-checkbox input-checkbox" name="terms" <?php checked(apply_filters('woocommerce_terms_is_checked_default', isset($_POST['terms'])), true); ?> id="terms" />
-			                    <span class="woocommerce-terms-and-conditions-checkbox-text">
-			                        <?php wc_terms_and_conditions_checkbox_text(); ?>
-			                    </span>
-			                    <span class="required">*</span>
-			                </label>
-			            </p>
-			        </div>
-			    <?php endif; ?>
-
-			    <?php wp_nonce_field('woocommerce-process_checkout', 'woocommerce-process-checkout-nonce'); ?>
-
-			    <button type="submit" class="button alt" name="woocommerce_checkout_place_order" id="place_order" value="<?php esc_attr_e('Next Step', 'woocommerce'); ?>" data-value="<?php esc_attr_e('Next Step', 'woocommerce'); ?>">
-			        <?php esc_html_e('Next Step', 'woocommerce'); ?>
-			    </button>
-			</div>
-        </div>
-
-    <?php endif; ?>
-
-</form>
-
-<?php do_action('woocommerce_after_checkout_form', $checkout); ?>
-
-<style>
-.custom-checkout-container {
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 20px;
+/**
+ * Set default payment method if none selected
+ */
+function ensure_payment_method($posted_data) {
+    if (empty($posted_data['payment_method'])) {
+        $available_gateways = WC()->payment_gateways->get_available_payment_gateways();
+        if (!empty($available_gateways)) {
+            $first_gateway = reset($available_gateways);
+            $posted_data['payment_method'] = $first_gateway->id;
+        }
+    }
+    return $posted_data;
 }
+add_filter('woocommerce_checkout_posted_data', 'ensure_payment_method', 10, 1);
 
-.cart-review-section,
-.billing-section {
-    background: #fff;
-    padding: 20px;
-    margin-bottom: 20px;
-    border-radius: 5px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
+/**
+ * Modify order processing for our custom flow
+ */
+function modify_order_processing($order_id) {
+    if (!$order_id) {
+        return;
+    }
 
-.cart-review-section h3,
-.billing-section h3 {
-    margin-top: 0;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #eee;
-}
+    $order = wc_get_order($order_id);
+    if (!$order) {
+        return;
+    }
 
-.place-order {
-    margin-top: 20px;
-}
+    // Set created via
+    $order->set_created_via('custom_checkout');
+    
+    // Set status to pending payment
+    $order->set_status('pending');
+    
+    // Save the order
+    $order->save();
 
-.terms-section {
-    text-align: left;
-    margin-bottom: 20px;
-    background: #f8f8f8;
-    padding: 15px;
-    border-radius: 4px;
+    // Store in session
+    WC()->session->set('order_awaiting_payment', $order_id);
 }
+add_action('woocommerce_checkout_order_processed', 'modify_order_processing', 10, 1);
 
-#place_order {
-    background-color: #2196F3;
-    color: white;
-    padding: 15px 30px;
-    font-size: 16px;
-    border-radius: 4px;
-    border: none;
-    float: right;
+/**
+ * Fix payment URL redirect
+ */
+function custom_get_checkout_payment_url($order_id) {
+    $order = wc_get_order($order_id);
+    if ($order) {
+        $payment_url = $order->get_checkout_payment_url();
+        wp_redirect($payment_url);
+        exit;
+    }
 }
-
-#place_order:hover {
-    background-color: #1976D2;
-}
-
-/* Hide payment methods radio but keep the input for form submission */
-.woocommerce-checkout-payment ul.payment_methods {
-    display: none !important;
-}
-
-/* Hide unnecessary elements */
-.woocommerce-shipping-fields,
-.woocommerce-additional-fields {
-    display: none !important;
-}
-
-/* Fix checkbox alignment */
-.woocommerce-form__label-for-checkbox {
-    display: inline-flex !important;
-    align-items: flex-start !important;
-    margin: 0 !important;
-}
-
-.woocommerce-form__input-checkbox {
-    margin: 5px 8px 0 0 !important;
-}
-
-/* Remove duplicate policy text */
-.woocommerce-terms-and-conditions-wrapper > p:not(.form-row) {
-    display: none;
-}
-</style>
+add_action('woocommerce_checkout_order_processed', 'custom_get_checkout_payment_url', 20, 1);
