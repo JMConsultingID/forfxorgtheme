@@ -287,3 +287,107 @@ function debug_checkout_errors($data, $errors) {
 }
 add_action('woocommerce_after_checkout_validation', 'debug_checkout_errors', 10, 2);
 */
+
+<?php
+// Add this to your functions.php
+
+/**
+ * Remove duplicate terms and conditions
+ */
+function remove_duplicate_terms_and_conditions() {
+    // Remove the default terms and conditions
+    remove_action('woocommerce_checkout_terms_and_conditions', 'wc_checkout_privacy_policy_text', 20);
+    remove_action('woocommerce_checkout_terms_and_conditions', 'wc_terms_and_conditions_page_content', 30);
+}
+add_action('init', 'remove_duplicate_terms_and_conditions');
+
+/**
+ * Remove privacy policy text from various locations
+ */
+function remove_privacy_policy_text() {
+    remove_action('woocommerce_checkout_before_terms_and_conditions', 'wc_checkout_privacy_policy_text', 10);
+    remove_action('woocommerce_checkout_after_terms_and_conditions', 'wc_checkout_privacy_policy_text', 10);
+}
+add_action('init', 'remove_privacy_policy_text');
+
+/**
+ * Add custom CSS to hide duplicate elements
+ */
+function add_custom_checkout_styles() {
+    if (is_checkout()) {
+        ?>
+        <style>
+            /* Hide all instances of terms and privacy policy except the last one */
+            .woocommerce-terms-and-conditions-wrapper:not(:last-of-type),
+            .woocommerce-privacy-policy-text:not(:last-of-type),
+            form.checkout > .woocommerce-terms-and-conditions-wrapper {
+                display: none !important;
+            }
+            
+            /* Hide duplicate buttons */
+            .form-row.place-order:not(:last-of-type),
+            #place_order:not(:last-of-type) {
+                display: none !important;
+            }
+
+            /* Custom styling for the remaining terms section */
+            .terms-section {
+                background: #f8f8f8;
+                padding: 20px;
+                border-radius: 4px;
+                margin-bottom: 20px;
+            }
+
+            .woocommerce-terms-and-conditions-wrapper {
+                margin-bottom: 0;
+            }
+
+            .form-row.validate-required {
+                margin: 0;
+            }
+
+            /* Style the checkbox and label */
+            .woocommerce-form__label-for-checkbox {
+                display: inline-flex !important;
+                align-items: flex-start !important;
+                margin: 0 !important;
+            }
+
+            .woocommerce-form__input-checkbox {
+                margin: 5px 8px 0 0 !important;
+            }
+
+            /* Style the Next Step button */
+            #place_order {
+                float: right;
+                background-color: #2196F3;
+                color: white;
+                padding: 15px 30px;
+                font-size: 16px;
+                border-radius: 4px;
+                border: none;
+            }
+
+            #place_order:hover {
+                background-color: #1976D2;
+            }
+        </style>
+        <?php
+    }
+}
+add_action('wp_head', 'add_custom_checkout_styles', 999);
+
+/**
+ * Ensure only one terms and conditions section is rendered
+ */
+function modify_terms_display($html) {
+    static $terms_displayed = false;
+    
+    if ($terms_displayed) {
+        return '';
+    }
+    
+    $terms_displayed = true;
+    return $html;
+}
+add_filter('woocommerce_checkout_terms_and_conditions_html', 'modify_terms_display');

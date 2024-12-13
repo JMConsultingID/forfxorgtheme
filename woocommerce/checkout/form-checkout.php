@@ -60,37 +60,42 @@ if (!$checkout->is_registration_enabled() && $checkout->is_registration_required
             </div>
 
             <!-- Terms and Next Step Button -->
-            <div class="form-row place-order">
-                <?php if (wc_get_page_id('terms') > 0) : ?>
-                    <div class="terms-section">
-                        <div class="woocommerce-terms-and-conditions-wrapper">
-                            <?php do_action('woocommerce_checkout_before_terms_and_conditions'); ?>
-                            
-                            <p class="form-row validate-required">
-                                <label class="woocommerce-form__label woocommerce-form__label-for-checkbox checkbox">
-                                    <input type="checkbox" class="woocommerce-form__input woocommerce-form__input-checkbox input-checkbox" name="terms" <?php checked(apply_filters('woocommerce_terms_is_checked_default', isset($_POST['terms'])), true); ?> id="terms" />
-                                    <span class="woocommerce-terms-and-conditions-checkbox-text"><?php wc_terms_and_conditions_checkbox_text(); ?></span>&nbsp;<span class="required">*</span>
-                                </label>
-                            </p>
+			<div class="form-row place-order">
+			    <?php if (wc_get_page_id('terms') > 0) : ?>
+			        <div class="terms-section">
+			            <!-- Privacy Policy Text -->
+			            <div class="woocommerce-privacy-policy-text">
+			                <p><?php
+			                    printf(
+			                        __('Your personal data will be used to process your order, support your experience throughout this website, and for other purposes described in our %s.', 'woocommerce'),
+			                        sprintf(
+			                            '<a href="%s" class="woocommerce-privacy-policy-link" target="_blank">%s</a>',
+			                            esc_url(get_privacy_policy_url()),
+			                            __('privacy policy', 'woocommerce')
+			                        )
+			                    );
+			                ?></p>
+			            </div>
 
-                            <?php do_action('woocommerce_checkout_after_terms_and_conditions'); ?>
-                        </div>
-                    </div>
-                <?php endif; ?>
+			            <!-- Terms Checkbox -->
+			            <p class="form-row validate-required">
+			                <label class="woocommerce-form__label woocommerce-form__label-for-checkbox checkbox">
+			                    <input type="checkbox" class="woocommerce-form__input woocommerce-form__input-checkbox input-checkbox" name="terms" <?php checked(apply_filters('woocommerce_terms_is_checked_default', isset($_POST['terms'])), true); ?> id="terms" />
+			                    <span class="woocommerce-terms-and-conditions-checkbox-text">
+			                        <?php wc_terms_and_conditions_checkbox_text(); ?>
+			                    </span>
+			                    <span class="required">*</span>
+			                </label>
+			            </p>
+			        </div>
+			    <?php endif; ?>
 
-                <noscript>
-                    <?php
-                    printf(esc_html__('Since your browser does not support JavaScript, or it is disabled, please ensure you click the %1$sUpdate Totals%2$s button before placing your order. You may be charged more than the amount stated above if you fail to do so.', 'woocommerce'), '<em>', '</em>');
-                    ?>
-                    <br/><button type="submit" class="button alt" name="woocommerce_checkout_update_totals" value="<?php esc_attr_e('Update totals', 'woocommerce'); ?>"><?php esc_html_e('Update totals', 'woocommerce'); ?></button>
-                </noscript>
+			    <?php wp_nonce_field('woocommerce-process_checkout', 'woocommerce-process-checkout-nonce'); ?>
 
-                <?php wp_nonce_field('woocommerce-process_checkout', 'woocommerce-process-checkout-nonce'); ?>
-
-                <button type="submit" class="button alt" name="woocommerce_checkout_place_order" id="place_order" value="<?php esc_attr_e('Next Step', 'woocommerce'); ?>" data-value="<?php esc_attr_e('Next Step', 'woocommerce'); ?>">
-                    <?php esc_html_e('Next Step', 'woocommerce'); ?>
-                </button>
-            </div>
+			    <button type="submit" class="button alt" name="woocommerce_checkout_place_order" id="place_order" value="<?php esc_attr_e('Next Step', 'woocommerce'); ?>" data-value="<?php esc_attr_e('Next Step', 'woocommerce'); ?>">
+			        <?php esc_html_e('Next Step', 'woocommerce'); ?>
+			    </button>
+			</div>
         </div>
 
     <?php endif; ?>
