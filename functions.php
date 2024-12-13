@@ -31,71 +31,74 @@ function forfx_theme_scripts_styles()
 }
 add_action('wp_enqueue_scripts', 'forfx_theme_scripts_styles', 20);
 
-function create_custom_order_without_product() {
-    try {
-        // Create a new order
-        $order = wc_create_order();
-
-        // Add a custom product/item to the order
-        $item = new WC_Order_Item_Product();
-        $item->set_name('Test Custom Item Name'); // Custom item name
-        $item->set_quantity(1);
-        $item->set_total(100); // Set the item price (e.g., $100)
-        $order->add_item($item);
-
-        // Set billing information
-        $order->set_billing_first_name('John');
-        $order->set_billing_last_name('Doe');
-        $order->set_billing_email('john.doe@example.com');
-        $order->set_billing_address_1('123 Example Street');
-        $order->set_billing_city('City');
-        $order->set_billing_postcode('12345');
-        $order->set_billing_country('US');
-
-        // Set order status to pending payment
-        $order->set_status('pending', 'Awaiting payment.');
-
-        // Calculate totals and save the order
-        $order->calculate_totals();
-        $order->save();
-
-        return $order->get_id();
-
-    } catch (Exception $e) {
-        error_log('Error creating order: ' . $e->getMessage());
-        return false;
+function custom_billing_form_shortcode() {
+    // If user already have an order in process, redirect to payment page
+    if (!empty(WC()->session) && !empty(WC()->session->get('order_awaiting_payment'))) {
+        $order_id = WC()->session->get('order_awaiting_payment');
+        wp_redirect(wc_get_endpoint_url('order-pay', $order_id, wc_get_checkout_url()));
+        exit;
     }
-}
 
-function custom_order_shortcode_handler() {
-    // Handle form submission
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_order'])) {
-        $order_id = create_custom_order_without_product();
+    // Get WooCommerce billing fields
+    $checkout = WC()->checkout;
+    $billing_fields = $checkout->get_checkout_fields('billing');
 
-        if ($order_id) {
-            // Redirect to the Order Pay page
-            $order = wc_get_order($order_id);
-            if ($order) {
-                $redirect_url = $order->get_checkout_payment_url();
-                error_log('Redirect URL: ' . $redirect_url);
-                if (ob_get_length()) {
-                    ob_clean();
-                }
-                wp_safe_redirect($redirect_url);
-                exit;
+    ob_start();
+    ?>
+    <form id="custom-billing-form" method="post">
+        <?php wp_nonce_field('process_billing_form', 'billing_form_nonce'); ?>
+
+        <?php
+        // Loop through billing fields
+        foreach ($billing_fields as $key => $field) {
+            if (isset($field['enabled']) && !$field['enabled']) {
+                continue;
             }
-        } else {
-            return '<p>Failed to create the order. Please try again.</p>';
+
+            $field_value = WC()->checkout->get_value($key);
+            woocommerce_form_field($key, $field, $field_value);
+        }
+        ?>
+
+        <div class="form-row place-order">
+            <button type="submit" class="button alt" name="process_billing" id="place_order">
+                <?php esc_html_e('Proceed to Payment', 'woocommerce'); ?>
+            </button>
+        </div>
+    </form>
+    <?php
+    return ob_get_clean();
+}
+add_shortcode('custom_billing_form', 'custom_billing_form_shortcode');
+
+// Process form submission
+function process_billing_form() {
+    // Check if our form is submitted
+    if (!isset($_POST['process_billing'])) {
+        return;
+    }
+
+    // Verify nonce
+    if (!wp_verify_nonce($_POST['billing_form_nonce'], 'process_billing_form')) {
+        wc_add_notice('Security check failed.', 'error');
+        return;
+    }
+
+    // Validate billing fields
+    $checkout = WC()->checkout;
+    $billing_fields = $checkout->get_checkout_fields('billing');
+    
+    foreach ($billing_fields as $key => $field) {
+        if (isset($field['required']) && $field['required'] && empty($_POST[$key])) {
+            wc_add_notice(sprintf('%s is required', $field['label']), 'error');
         }
     }
 
-    // Display the form
-    $html = '<form method="POST">';
-    $html .= '<button type="submit" name="create_order">Create Order</button>';
-    $html .= '</form>';
+    // If validation errors exist, return
+    if (wc_notice_count('error') > 0) {
+        return;
+    }
 
-    return $html;
+    // Process will continue in next implementation
 }
-
-// Register the shortcode
-add_shortcode('create_custom_order', 'custom_order_shortcode_handler');
+add_action('template_redirect', 'process_billing_form');
