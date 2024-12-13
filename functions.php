@@ -310,7 +310,7 @@ add_action('init', 'remove_privacy_policy_text');
 /**
  * Add custom CSS to hide duplicate elements
  */
-function add_custom_checkout_styles() {
+function for_add_custom_checkout_styles() {
     if (is_checkout()) {
         ?>
         <style>
@@ -372,7 +372,7 @@ function add_custom_checkout_styles() {
         <?php
     }
 }
-add_action('wp_head', 'add_custom_checkout_styles', 999);
+add_action('wp_head', 'for_add_custom_checkout_styles', 999);
 
 /**
  * Ensure only one terms and conditions section is rendered
