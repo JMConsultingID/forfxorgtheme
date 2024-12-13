@@ -13,3 +13,71 @@ Tags: flexible-header, custom-colors, custom-menu, custom-logo, editor-style, fe
 */
 
 /* Add your custom styles here */
+/* Custom styles for multi-step checkout */
+.checkout-steps {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 30px;
+    padding: 20px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.checkout-steps .step {
+    flex: 1;
+    text-align: center;
+    padding: 10px;
+    background: #f8f8f8;
+    margin: 0 5px;
+    border-radius: 4px;
+    color: #666;
+}
+
+.checkout-steps .step.active {
+    background: #2271b1;
+    color: white;
+}
+
+.checkout-steps .step.completed {
+    background: #7ad03a;
+    color: white;
+}
+
+/* Hide unnecessary elements */
+.woocommerce-checkout .woocommerce-additional-fields,
+.woocommerce-checkout .woocommerce-shipping-fields {
+    display: none;
+}
+
+/* Style the Next button */
+#place_order {
+    background-color: #2271b1;
+    color: white;
+    padding: 15px 30px;
+    font-size: 16px;
+    width: 100%;
+    margin-top: 20px;
+}
+
+/* Order details on payment page */
+.order-details-wrapper {
+    background: #f8f8f8;
+    padding: 20px;
+    margin-bottom: 30px;
+    border-radius: 4px;
+}
+
+.order-details {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.order-details th,
+.order-details td {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.order-details th {
+    text-align: left;
+    width: 30%;
+}
