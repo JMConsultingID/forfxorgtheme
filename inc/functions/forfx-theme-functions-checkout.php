@@ -174,7 +174,7 @@ add_shortcode('custom_billing_form', 'custom_billing_form_shortcode');
 
 // Process the form submission
 function handle_billing_form_submission() {
-    // Get return URL
+    // Get return URL early
     $return_url = isset($_POST['return_url']) ? esc_url_raw($_POST['return_url']) : home_url();
 
     // Verify nonce
@@ -198,6 +198,29 @@ function handle_billing_form_submission() {
     }
 
     try {
+        // Get cart data from session if available
+        global $woocommerce;
+        
+        if (!isset($woocommerce) || empty($woocommerce->session)) {
+            // Load WooCommerce if not loaded
+            include_once WC_ABSPATH . 'includes/wc-cart-functions.php';
+            include_once WC_ABSPATH . 'includes/wc-notice-functions.php';
+            include_once WC_ABSPATH . 'includes/wc-template-hooks.php';
+
+            if (!is_null(WC()->session)) {
+                $cart_items = WC()->session->get('cart', array());
+            } else {
+                // If session is not available, try to get cart from database
+                $woocommerce = WC();
+                $woocommerce->frontend_includes();
+                $woocommerce->initialize_session();
+                $woocommerce->initialize_cart();
+                $cart_items = WC()->session->get('cart', array());
+            }
+        } else {
+            $cart_items = $woocommerce->session->get('cart', array());
+        }
+
         // Create new order
         $order = wc_create_order();
 
@@ -220,25 +243,31 @@ function handle_billing_form_submission() {
         $order->set_address($billing_address, 'shipping');
 
         // Add cart items to order
-        foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item) {
-            $product = $cart_item['data'];
-            $quantity = $cart_item['quantity'];
-            
-            $order->add_product(
-                $product,
-                $quantity,
-                array(
-                    'total' => $cart_item['line_total'],
-                    'subtotal' => $cart_item['line_subtotal']
-                )
-            );
+        if (!empty($cart_items)) {
+            foreach ($cart_items as $cart_item_key => $cart_item) {
+                if (!isset($cart_item['product_id'])) {
+                    continue;
+                }
+
+                $product = wc_get_product($cart_item['product_id']);
+                if (!$product) {
+                    continue;
+                }
+
+                $quantity = isset($cart_item['quantity']) ? $cart_item['quantity'] : 1;
+                
+                $order->add_product(
+                    $product,
+                    $quantity
+                );
+            }
         }
 
         // Set order metadata
         $order->set_created_via('custom_checkout');
         $order->set_customer_id(get_current_user_id());
-        $order->set_customer_ip_address(WC_Geolocation::get_ip_address());
-        $order->set_customer_user_agent(wc_get_user_agent());
+        $order->set_customer_ip_address($_SERVER['REMOTE_ADDR']);
+        $order->set_customer_user_agent($_SERVER['HTTP_USER_AGENT']);
 
         // Calculate totals
         $order->calculate_totals();
@@ -249,19 +278,24 @@ function handle_billing_form_submission() {
         // Save order
         $order->save();
 
-        // Empty cart
-        WC()->cart->empty_cart();
+        // Get WooCommerce instance and empty cart
+        if (!is_null(WC()->cart)) {
+            WC()->cart->empty_cart();
+        }
 
-        // Set order ID in session
-        WC()->session->set('order_awaiting_payment', $order->get_id());
+        // Store order ID in session
+        if (!is_null(WC()->session)) {
+            WC()->session->set('order_awaiting_payment', $order->get_id());
+        }
 
         // Redirect to payment page
-        wp_safe_redirect($order->get_checkout_payment_url());
+        $payment_url = $order->get_checkout_payment_url();
+        wp_safe_redirect($payment_url);
         exit;
 
     } catch (Exception $e) {
-        wc_add_notice($e->getMessage(), 'error');
-        wp_safe_redirect($return_url);
+        error_log('Custom checkout error: ' . $e->getMessage());
+        wp_safe_redirect(add_query_arg('checkout_error', urlencode($e->getMessage()), $return_url));
         exit;
     }
 }
