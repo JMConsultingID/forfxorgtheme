@@ -135,8 +135,21 @@ add_shortcode('custom_billing_form', 'custom_billing_form_shortcode');
 
 // Handle form submission through admin-post.php
 function handle_billing_form_submission() {
+    // Ensure WooCommerce is loaded
+    if (!function_exists('WC')) {
+        wp_die('WooCommerce is required to process this form.');
+        return;
+    }
+
     // Get return URL
     $return_url = isset($_POST['return_url']) ? esc_url_raw($_POST['return_url']) : wc_get_checkout_url();
+
+    // Initialize WooCommerce if not already done
+    if (!did_action('woocommerce_init')) {
+        WC()->frontend_includes();
+        WC()->initialize_session();
+        WC()->initialize_cart();
+    }
 
     // Verify nonce
     if (!isset($_POST['billing_form_nonce']) || !wp_verify_nonce($_POST['billing_form_nonce'], 'process_billing_form')) {
@@ -145,7 +158,7 @@ function handle_billing_form_submission() {
         exit;
     }
 
-    // Check if cart is empty
+    // Now we can safely check the cart
     if (WC()->cart->is_empty()) {
         wc_add_notice('Your cart is empty. Cannot proceed with checkout.', 'error');
         wp_safe_redirect($return_url);
