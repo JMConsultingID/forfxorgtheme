@@ -14,8 +14,6 @@
  * @package WooCommerce\Templates
  * @version 9.4.0
  */
-<?php
-// form-checkout.php
 
 if (!defined('ABSPATH')) {
     exit;
