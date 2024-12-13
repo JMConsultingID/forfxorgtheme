@@ -22,6 +22,20 @@ if (!defined('ABSPATH')) {
 do_action('woocommerce_before_checkout_form', $checkout);
 ?>
 
+<?php
+// Add nonce field
+wp_nonce_field('woocommerce-process_checkout', 'woocommerce-process-checkout-nonce');
+
+// Add hidden payment method field
+$available_gateways = WC()->payment_gateways->get_available_payment_gateways();
+if (!empty($available_gateways)) {
+    $first_gateway = reset($available_gateways);
+    ?>
+    <input type="hidden" name="payment_method" value="<?php echo esc_attr($first_gateway->id); ?>" />
+    <?php
+}
+?>
+
 <form name="checkout" method="post" class="checkout woocommerce-checkout" action="<?php echo esc_url(wc_get_checkout_url()); ?>" enctype="multipart/form-data">
 
     <div class="custom-checkout-container">
@@ -37,11 +51,6 @@ do_action('woocommerce_before_checkout_form', $checkout);
         <div class="billing-section">
             <h3><?php esc_html_e('Billing Details', 'woocommerce'); ?></h3>
             <div class="woocommerce-billing-fields">
-            	<!-- Add hidden payment method field -->
-<input type="hidden" name="payment_method" value="<?php 
-    $available_gateways = WC()->payment_gateways->get_available_payment_gateways();
-    echo !empty($available_gateways) ? array_key_first($available_gateways) : '';
-?>" />
                 <?php foreach ($checkout->get_checkout_fields('billing') as $key => $field) : ?>
                     <?php woocommerce_form_field($key, $field, $checkout->get_value($key)); ?>
                 <?php endforeach; ?>
