@@ -31,8 +31,6 @@ function forfx_theme_scripts_styles()
 }
 add_action('wp_enqueue_scripts', 'forfx_theme_scripts_styles', 20);
 
-// Add this to your child theme's functions.php
-
 /**
  * Customize checkout process
  */
@@ -89,25 +87,68 @@ function custom_order_review() {
 }
 
 /**
+ * Set default payment method
+ */
+function set_default_payment_method($available_gateways) {
+    if (!is_checkout()) {
+        return $available_gateways;
+    }
+
+    // Get the first available payment method
+    if (!empty($available_gateways)) {
+        $first_gateway = reset($available_gateways);
+        WC()->session->set('chosen_payment_method', $first_gateway->id);
+    }
+
+    return $available_gateways;
+}
+add_filter('woocommerce_available_payment_gateways', 'set_default_payment_method', 100);
+
+/**
  * Handle order creation and redirect
  */
-function handle_checkout_order_creation($order_id, $posted_data) {
+function handle_checkout_order_creation($order_id) {
+    if (!$order_id) {
+        return;
+    }
+
+    // Get the order
     $order = wc_get_order($order_id);
     
     if ($order) {
-        // Set order status
+        // Set order status to pending
         $order->set_status('pending');
         $order->save();
 
         // Store order ID in session
         WC()->session->set('order_awaiting_payment', $order_id);
 
+        // Get the payment URL
+        $payment_url = $order->get_checkout_payment_url();
+
         // Redirect to payment page
-        wp_redirect($order->get_checkout_payment_url());
-        exit;
+        if (!empty($payment_url)) {
+            wp_redirect($payment_url);
+            exit;
+        }
     }
 }
-add_action('woocommerce_checkout_order_processed', 'handle_checkout_order_creation', 10, 2);
+add_action('woocommerce_checkout_order_processed', 'handle_checkout_order_creation', 10);
+
+/**
+ * Add default payment method to checkout data
+ */
+function add_default_payment_method_to_checkout_data($data) {
+    if (empty($data['payment_method'])) {
+        $available_gateways = WC()->payment_gateways->get_available_payment_gateways();
+        if (!empty($available_gateways)) {
+            $first_gateway = reset($available_gateways);
+            $data['payment_method'] = $first_gateway->id;
+        }
+    }
+    return $data;
+}
+add_filter('woocommerce_checkout_posted_data', 'add_default_payment_method_to_checkout_data');
 
 /**
  * Remove unnecessary checkout fields
@@ -122,3 +163,5 @@ function remove_unnecessary_checkout_fields($fields) {
     return $fields;
 }
 add_filter('woocommerce_checkout_fields', 'remove_unnecessary_checkout_fields');
+
+// Previous custom_order_review function remains the same
