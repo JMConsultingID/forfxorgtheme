@@ -133,57 +133,32 @@ function custom_billing_form_shortcode() {
 }
 add_shortcode('custom_billing_form', 'custom_billing_form_shortcode');
 
-// Handle form submission through admin-post.php
+
 function handle_billing_form_submission() {
-    // Ensure WooCommerce is loaded
-    if (!function_exists('WC')) {
-        wp_die('WooCommerce is required to process this form.');
-        return;
-    }
+    // Load WooCommerce core
+    include_once WC_ABSPATH . 'includes/wc-cart-functions.php';
+    include_once WC_ABSPATH . 'includes/wc-notice-functions.php';
+    include_once WC_ABSPATH . 'includes/wc-template-hooks.php';
 
-    // Get return URL
-    $return_url = isset($_POST['return_url']) ? esc_url_raw($_POST['return_url']) : wc_get_checkout_url();
+    // Get return URL early
+    $return_url = isset($_POST['return_url']) ? esc_url_raw($_POST['return_url']) : home_url();
 
-    // Initialize WooCommerce if not already done
-    if (!did_action('woocommerce_init')) {
+    // Initialize WooCommerce session and cart if needed
+    if (!WC()->is_loaded()) {
         WC()->frontend_includes();
-        WC()->initialize_session();
-        WC()->initialize_cart();
+        WC()->cart = new WC_Cart();
+        WC()->session = new WC_Session_Handler();
+        WC()->session->init();
     }
 
-    // Verify nonce
+    // Verify nonce first
     if (!isset($_POST['billing_form_nonce']) || !wp_verify_nonce($_POST['billing_form_nonce'], 'process_billing_form')) {
-        wc_add_notice('Security check failed.', 'error');
-        wp_safe_redirect($return_url);
-        exit;
-    }
-
-    // Now we can safely check the cart
-    if (WC()->cart->is_empty()) {
-        wc_add_notice('Your cart is empty. Cannot proceed with checkout.', 'error');
-        wp_safe_redirect($return_url);
-        exit;
-    }
-
-    // Get checkout fields
-    $checkout = WC()->checkout;
-    $billing_fields = $checkout->get_checkout_fields('billing');
-
-    // Validate required fields
-    foreach ($billing_fields as $key => $field) {
-        if (isset($field['required']) && $field['required'] && empty($_POST[$key])) {
-            wc_add_notice(sprintf('%s is required', $field['label']), 'error');
-        }
-    }
-
-    // If validation errors exist, return
-    if (wc_notice_count('error') > 0) {
-        wp_safe_redirect($return_url);
+        wp_safe_redirect(add_query_arg('wc_error', 'security_check', $return_url));
         exit;
     }
 
     try {
-        // Create new order
+        // Create new order directly without cart check
         $order = wc_create_order();
 
         // Set created via
@@ -193,27 +168,37 @@ function handle_billing_form_submission() {
         $customer_id = get_current_user_id();
         $order->set_customer_id($customer_id);
 
-        // Add cart items to order
-        foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item) {
-            $product = $cart_item['data'];
-            $quantity = $cart_item['quantity'];
-            
-            $order->add_product(
-                $product,
-                $quantity,
-                array(
-                    'subtotal' => $cart_item['line_subtotal'],
-                    'total' => $cart_item['line_total']
-                )
-            );
+        // Get cart items from session if available
+        if (WC()->cart && !WC()->cart->is_empty()) {
+            foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item) {
+                $product = $cart_item['data'];
+                $quantity = $cart_item['quantity'];
+                
+                $order->add_product(
+                    $product,
+                    $quantity,
+                    array(
+                        'subtotal' => $cart_item['line_subtotal'],
+                        'total' => $cart_item['line_total']
+                    )
+                );
+            }
+        } else {
+            throw new Exception('Cart is empty or not available.');
         }
 
         // Set billing data
+        $billing_fields = array(
+            'first_name', 'last_name', 'company', 'address_1',
+            'address_2', 'city', 'state', 'postcode', 'country',
+            'email', 'phone'
+        );
+
         $billing_address = array();
-        foreach ($billing_fields as $key => $field) {
-            if (!empty($_POST[$key])) {
-                $clean_key = str_replace('billing_', '', $key);
-                $billing_address[$clean_key] = wc_clean($_POST[$key]);
+        foreach ($billing_fields as $field) {
+            $post_key = 'billing_' . $field;
+            if (!empty($_POST[$post_key])) {
+                $billing_address[$field] = wc_clean($_POST[$post_key]);
             }
         }
         
@@ -230,21 +215,32 @@ function handle_billing_form_submission() {
         // Save order
         $order->save();
 
-        // Empty cart
-        WC()->cart->empty_cart();
-
-        // Store order ID in session
-        WC()->session->set('order_awaiting_payment', $order->get_id());
+        // Try to empty cart if available
+        if (WC()->cart) {
+            WC()->cart->empty_cart();
+        }
 
         // Redirect to payment page
         wp_safe_redirect($order->get_checkout_payment_url());
         exit;
 
     } catch (Exception $e) {
-        wc_add_notice($e->getMessage(), 'error');
-        wp_safe_redirect($return_url);
+        wp_safe_redirect(add_query_arg('wc_error', urlencode($e->getMessage()), $return_url));
         exit;
     }
 }
 add_action('admin_post_process_custom_billing', 'handle_billing_form_submission');
 add_action('admin_post_nopriv_process_custom_billing', 'handle_billing_form_submission');
+
+// Handle error messages on return
+function handle_custom_checkout_messages() {
+    if (isset($_GET['wc_error'])) {
+        $error = sanitize_text_field(urldecode($_GET['wc_error']));
+        if ($error === 'security_check') {
+            wc_add_notice('Security check failed.', 'error');
+        } else {
+            wc_add_notice($error, 'error');
+        }
+    }
+}
+add_action('wp_loaded', 'handle_custom_checkout_messages');
