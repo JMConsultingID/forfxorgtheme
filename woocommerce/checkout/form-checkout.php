@@ -15,6 +15,10 @@
  * @version 9.4.0
  */
 
+/**
+ * Checkout Form
+ */
+
 if (!defined('ABSPATH')) {
     exit;
 }
@@ -54,9 +58,26 @@ if (!$checkout->is_registration_enabled() && $checkout->is_registration_required
                 </div>
             </div>
 
-            <!-- Terms and Conditions -->
+            <!-- Terms and Privacy Policy -->
             <div class="terms-section">
-                <?php woocommerce_checkout_terms_and_conditions(); ?>
+                <?php if (wc_get_page_id('terms') > 0) : ?>
+                    <p class="form-row terms wc-terms-and-conditions">
+                        <label class="woocommerce-form__label woocommerce-form__label-for-checkbox checkbox">
+                            <input type="checkbox" class="woocommerce-form__input woocommerce-form__input-checkbox input-checkbox" name="terms" <?php checked(apply_filters('woocommerce_terms_is_checked_default', isset($_POST['terms'])), true); ?> id="terms" />
+                            <span class="woocommerce-terms-and-conditions-checkbox-text"><?php wc_terms_and_conditions_checkbox_text(); ?></span>
+                            <span class="required">*</span>
+                        </label>
+                    </p>
+                <?php endif; ?>
+
+                <div class="woocommerce-privacy-policy-text">
+                    <p><?php
+                        echo sprintf(
+                            __('Your personal data will be used to process your order, support your experience throughout this website, and for other purposes described in our %s.', 'woocommerce'),
+                            '<a href="' . esc_url(get_privacy_policy_url()) . '" class="woocommerce-privacy-policy-link" target="_blank">' . __('privacy policy', 'woocommerce') . '</a>'
+                        );
+                    ?></p>
+                </div>
             </div>
 
             <!-- Hidden Payment Section -->
@@ -140,20 +161,31 @@ if (!$checkout->is_registration_enabled() && $checkout->is_registration_required
     display: none !important;
 }
 
-/* Remove duplicate privacy policy text */
-.woocommerce-privacy-policy-text {
-    display: none;
-}
-.terms-section .woocommerce-privacy-policy-text {
-    display: block;
-}
-
-/* Style terms and conditions checkbox */
+/* Style terms and conditions */
 .terms-section {
     margin-top: 20px;
 }
+
 .terms-section .woocommerce-terms-and-conditions-checkbox-text {
-    display: inline-block;
     margin-left: 5px;
+}
+
+.terms-section .privacy-policy {
+    margin-top: 10px;
+}
+
+/* Fix checkbox alignment */
+.woocommerce-form__label-for-checkbox {
+    display: flex !important;
+    align-items: flex-start !important;
+}
+
+.woocommerce-form__input-checkbox {
+    margin-top: 5px !important;
+}
+
+.woocommerce-terms-and-conditions-checkbox-text {
+    flex: 1;
+    padding-left: 10px;
 }
 </style>
