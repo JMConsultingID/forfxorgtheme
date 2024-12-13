@@ -59,10 +59,7 @@ function custom_billing_form_shortcode() {
         </div>
 
         <!-- Billing Form Section -->
-        <form id="custom-billing-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-            <input type="hidden" name="ajax_nonce" value="<?php echo wp_create_nonce('custom_checkout_nonce'); ?>">
-
-
+        <form id="custom-billing-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" target="_blank">
             <input type="hidden" name="action" value="process_custom_billing">
             <input type="hidden" name="return_url" value="<?php echo esc_url(get_permalink()); ?>">
             <?php wp_nonce_field('process_billing_form', 'billing_form_nonce'); ?>
@@ -132,79 +129,6 @@ function custom_billing_form_shortcode() {
         </form>
     </div>
 
-    <!-- Tambahkan di bawah form -->
-<div id="checkout-loading" style="display: none;">
-    <p>Processing your order, please wait...</p>
-</div>
-
-<style>
-#checkout-loading {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(255,255,255,0.8);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 9999;
-}
-</style>
-
-<script>
-function handleFormSubmit(event) {
-    event.preventDefault();
-    
-    // Show loading
-    document.getElementById('checkout-loading').style.display = 'flex';
-    
-    // Existing AJAX code...
-    
-    // Add to .catch:
-    .catch(error => {
-        console.error('Error:', error);
-        document.getElementById('checkout-loading').style.display = 'none';
-        location.reload();
-    });
-}
-</script>
-
-    <!-- Tambahkan script di akhir form -->
-<script>
-function handleFormSubmit(event) {
-    event.preventDefault();
-    
-    // Submit form menggunakan AJAX
-    const form = document.getElementById('custom-billing-form');
-    const formData = new FormData(form);
-    
-    fetch(form.action, {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.text())
-    .then(data => {
-        // Data berisi URL payment dari server
-        if(data.startsWith('http')) {
-            // Buka payment page di tab baru
-            window.open(data, '_blank');
-            // Redirect halaman ini ke home
-            window.location.href = '<?php echo home_url(); ?>';
-        } else {
-            // Jika ada error, refresh halaman
-            location.reload();
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        location.reload();
-    });
-
-    return false;
-}
-</script>
-
     <style>
         .custom-checkout-container {
             max-width: 800px;
@@ -242,6 +166,8 @@ function handleFormSubmit(event) {
             background-color: #555;
         }
     </style>
+    <!-- Add meta refresh to redirect main window -->
+    <meta http-equiv="refresh" content="1;url=<?php echo esc_url(home_url()); ?>">
     <?php
 
     return ob_get_clean();
@@ -250,13 +176,6 @@ add_shortcode('custom_billing_form', 'custom_billing_form_shortcode');
 
 // Process the form submission
 function handle_billing_form_submission() {
-    // Validate AJAX nonce first
-    if (!isset($_POST['ajax_nonce']) || !wp_verify_nonce($_POST['ajax_nonce'], 'custom_checkout_nonce')) {
-        http_response_code(403);
-        echo 'Security check failed';
-        exit;
-    }
-
     // Get return URL early
     $return_url = isset($_POST['return_url']) ? esc_url_raw($_POST['return_url']) : home_url();
 
@@ -372,14 +291,37 @@ function handle_billing_form_submission() {
         }
 
         // Redirect to payment page
-        echo $order->get_checkout_payment_url();
+        //$payment_url = $order->get_checkout_payment_url();
+        //wp_safe_redirect($payment_url);
+        //exit;
+        // Output HTML with meta refresh for the parent window
+        ?>
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Processing Order</title>
+            <meta http-equiv="refresh" content="0;url=<?php echo esc_url($order->get_checkout_payment_url()); ?>">
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    text-align: center;
+                    padding: 20px;
+                }
+            </style>
+        </head>
+        <body>
+            <p>Redirecting to payment page...</p>
+            <p>If you are not redirected, <a href="<?php echo esc_url($order->get_checkout_payment_url()); ?>">click here</a></p>
+        </body>
+        </html>
+        <?php
+        // Send a signal to the parent window to refresh
+        header('Clear-Site-Data: "cache"');
         exit;
 
     } catch (Exception $e) {
         error_log('Custom checkout error: ' . $e->getMessage());
-        http_response_code(400);
-        echo $e->getMessage();
-        exit;
+        wp_die($e->getMessage(), 'Error', array('back_link' => true));
     }
 }
 add_action('admin_post_process_custom_billing', 'handle_billing_form_submission');
