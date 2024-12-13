@@ -31,172 +31,199 @@ function forfx_theme_scripts_styles()
 }
 add_action('wp_enqueue_scripts', 'forfx_theme_scripts_styles', 20);
 
+<?php
 /**
- * Custom WooCommerce Checkout Modifications
- * Add to your child theme's functions.php
+ * Custom WooCommerce Checkout Flow Implementation
+ * Add this to your child theme's functions.php
  */
 
 /**
- * Remove unnecessary checkout fields
+ * Remove unnecessary fields and sections
  */
-function modify_checkout_fields($fields) {
-    // Remove shipping fields completely
+function custom_remove_checkout_fields($fields) {
+    // Remove shipping fields
     unset($fields['shipping']);
+    
+    // Remove order comments
+    unset($fields['order']['order_comments']);
     
     // Optionally remove specific billing fields
     // unset($fields['billing']['billing_company']);
     // unset($fields['billing']['billing_address_2']);
     
-    // Modify existing fields
-    $fields['billing']['billing_email']['priority'] = 1;
-    $fields['billing']['billing_phone']['priority'] = 2;
-    $fields['billing']['billing_first_name']['priority'] = 3;
-    $fields['billing']['billing_last_name']['priority'] = 4;
-    
     return $fields;
 }
-add_filter('woocommerce_checkout_fields', 'modify_checkout_fields');
+add_filter('woocommerce_checkout_fields', 'custom_remove_checkout_fields');
 
 /**
- * Modify the checkout process flow
+ * Remove shipping methods display
  */
-function modify_checkout_process() {
-    // Set shipping same as billing
-    add_filter('woocommerce_ship_to_different_address_checked', '__return_false');
-    
-    // Auto fill shipping fields with billing
-    add_filter('woocommerce_cart_needs_shipping_address', '__return_false');
+function custom_remove_shipping_methods() {
+    remove_action('woocommerce_checkout_shipping', 'woocommerce_checkout_shipping', 10);
 }
-add_action('woocommerce_checkout_init', 'modify_checkout_process');
+add_action('init', 'custom_remove_shipping_methods');
 
 /**
- * Add custom field validation
+ * Customize checkout template parts
  */
-function custom_checkout_field_validation() {
-    // Example: Additional phone validation
-    if (isset($_POST['billing_phone'])) {
-        $phone = sanitize_text_field($_POST['billing_phone']);
-        if (strlen($phone) < 10) {
-            wc_add_notice('Phone number should be at least 10 digits', 'error');
-        }
+function custom_reorder_checkout() {
+    // Remove default order review
+    remove_action('woocommerce_checkout_order_review', 'woocommerce_order_review', 10);
+    remove_action('woocommerce_checkout_order_review', 'woocommerce_checkout_payment', 20);
+    
+    // Add simplified order review
+    add_action('woocommerce_checkout_before_customer_details', 'custom_order_review', 10);
+}
+add_action('init', 'custom_reorder_checkout');
+
+/**
+ * Display simplified order review
+ */
+function custom_order_review() {
+    echo '<div class="custom-order-review">';
+    echo '<h3>' . __('Order Review', 'woocommerce') . '</h3>';
+    
+    // Display cart items
+    echo '<table class="shop_table">';
+    echo '<thead><tr>';
+    echo '<th>' . __('Product', 'woocommerce') . '</th>';
+    echo '<th>' . __('Total', 'woocommerce') . '</th>';
+    echo '</tr></thead><tbody>';
+    
+    foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item) {
+        $_product = $cart_item['data'];
+        echo '<tr>';
+        echo '<td>' . $_product->get_name() . ' × ' . $cart_item['quantity'] . '</td>';
+        echo '<td>' . WC()->cart->get_product_subtotal($_product, $cart_item['quantity']) . '</td>';
+        echo '</tr>';
+    }
+    
+    echo '</tbody>';
+    echo '<tfoot>';
+    echo '<tr>';
+    echo '<th>' . __('Total', 'woocommerce') . '</th>';
+    echo '<td>' . WC()->cart->get_total() . '</td>';
+    echo '</tr>';
+    echo '</tfoot>';
+    echo '</table>';
+    echo '</div>';
+}
+
+/**
+ * Modify checkout button text
+ */
+function custom_checkout_button_text($button_text) {
+    return __('Proceed to Payment', 'woocommerce');
+}
+add_filter('woocommerce_order_button_text', 'custom_checkout_button_text');
+
+/**
+ * Handle order creation before payment
+ */
+function custom_create_order_before_payment($order_id) {
+    $order = wc_get_order($order_id);
+    
+    if ($order) {
+        // Set order status to pending payment
+        $order->set_status('pending');
+        $order->save();
+        
+        // Store order ID in session
+        WC()->session->set('order_awaiting_payment', $order_id);
+        
+        // Get payment URL
+        $payment_url = $order->get_checkout_payment_url();
+        
+        // Redirect to payment page
+        wp_redirect($payment_url);
+        exit;
     }
 }
-add_action('woocommerce_checkout_process', 'custom_checkout_field_validation');
+add_action('woocommerce_checkout_order_processed', 'custom_create_order_before_payment', 10, 1);
 
 /**
- * Modify checkout layout
+ * Add custom styling
  */
-function modify_checkout_layout() {
-    // Remove order notes
-    remove_action('woocommerce_checkout_order_review', 'woocommerce_order_review', 10);
-    
-    // Add order review in custom position
-    add_action('woocommerce_checkout_before_customer_details', 'woocommerce_order_review', 10);
-}
-add_action('init', 'modify_checkout_layout');
-
-/**
- * Add custom CSS for checkout page
- */
-function add_custom_checkout_css() {
+function custom_checkout_styles() {
     if (is_checkout()) {
         ?>
         <style>
-            /* Customize checkout form layout */
-            .woocommerce-checkout .woocommerce {
-                max-width: 1200px;
-                margin: 0 auto;
-                padding: 20px;
+            /* Hide unnecessary elements */
+            .woocommerce-shipping-fields,
+            .woocommerce-additional-fields {
+                display: none !important;
             }
-
-            /* Make billing form full width */
-            .woocommerce-checkout .col2-set {
-                width: 100%;
-                float: none;
-            }
-
-            /* Style the order review table */
-            #order_review {
+            
+            /* Style order review */
+            .custom-order-review {
                 margin-bottom: 30px;
-                background: #f8f8f8;
                 padding: 20px;
-                border-radius: 5px;
+                background: #f8f8f8;
+                border-radius: 4px;
             }
-
-            /* Style form fields */
-            .woocommerce form .form-row input.input-text {
-                height: 40px;
-                padding: 0 15px;
+            
+            .custom-order-review table {
+                width: 100%;
+                border-collapse: collapse;
             }
-
-            /* Payment section styling */
-            #payment {
-                background: #ffffff !important;
-                border-radius: 5px;
+            
+            .custom-order-review th,
+            .custom-order-review td {
+                padding: 10px;
+                border-bottom: 1px solid #ddd;
+            }
+            
+            /* Style form layout */
+            .woocommerce-billing-fields {
                 margin-top: 20px;
+            }
+            
+            /* Responsive adjustments */
+            @media (max-width: 768px) {
+                .custom-order-review {
+                    padding: 15px;
+                }
             }
         </style>
         <?php
     }
 }
-add_action('wp_head', 'add_custom_checkout_css');
+add_action('wp_head', 'custom_checkout_styles');
 
 /**
- * Add custom content before checkout form
+ * Customize payment page
  */
-function add_content_before_checkout_form() {
-    ?>
-    <div class="checkout-header">
-        <h2>Complete Your Order</h2>
-        <div class="checkout-steps">
-            <span class="step active">Order Review</span>
-            <span class="step">Billing Details</span>
-            <span class="step">Payment</span>
-        </div>
-    </div>
-    <?php
-}
-add_action('woocommerce_before_checkout_form', 'add_content_before_checkout_form', 5);
-
-/**
- * Modify the order review table
- */
-function customize_order_review($order_id) {
-    // Only run on checkout page
-    if (!is_checkout()) {
+function customize_payment_page($order_id) {
+    if (!is_wc_endpoint_url('order-pay')) {
         return;
     }
-    ?>
-    <div class="custom-order-review-header">
-        <h3>Order Summary</h3>
-    </div>
-    <?php
+    
+    // Add custom content or modifications to payment page
+    echo '<div class="payment-page-notice">';
+    echo '<p>' . __('Please review your order and select your payment method below.', 'woocommerce') . '</p>';
+    echo '</div>';
 }
-add_action('woocommerce_before_order_notes', 'customize_order_review');
+add_action('woocommerce_before_pay_action', 'customize_payment_page');
 
 /**
- * Add custom fields after billing form
+ * Optional: Add payment page styles
  */
-function add_custom_checkout_fields($checkout) {
-    // Example: Add custom notes field
-    woocommerce_form_field('custom_notes', array(
-        'type'          => 'textarea',
-        'class'         => array('custom-notes-field'),
-        'label'         => 'Additional Notes',
-        'placeholder'   => 'Add any special instructions here',
-        'required'      => false,
-    ), $checkout->get_value('custom_notes'));
-}
-add_action('woocommerce_after_checkout_billing_form', 'add_custom_checkout_fields');
-
-/**
- * Save custom field values
- */
-function save_custom_checkout_fields($order_id) {
-    if (!empty($_POST['custom_notes'])) {
-        $order = wc_get_order($order_id);
-        $order->update_meta_data('custom_notes', sanitize_textarea_field($_POST['custom_notes']));
-        $order->save();
+function custom_payment_page_styles() {
+    if (is_wc_endpoint_url('order-pay')) {
+        ?>
+        <style>
+            .payment-page-notice {
+                margin-bottom: 30px;
+                padding: 15px;
+                background: #f8f8f8;
+                border-left: 4px solid #2196F3;
+            }
+            
+            .woocommerce-order-pay .shop_table {
+                margin-bottom: 30px;
+            }
+        </style>
+        <?php
     }
 }
-add_action('woocommerce_checkout_update_order_meta', 'save_custom_checkout_fields');
+add_action('wp_head', 'custom_payment_page_styles');
