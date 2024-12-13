@@ -31,14 +31,25 @@ function forfx_theme_scripts_styles()
 }
 add_action('wp_enqueue_scripts', 'forfx_theme_scripts_styles', 20);
 
-// Membatasi checkout ke satu produk dengan quantity 1
-add_action('woocommerce_add_to_cart_validation', 'limit_cart_to_single_product', 10, 2);
-function limit_cart_to_single_product($passed, $product_id) {
-    WC()->cart->empty_cart();
+// Restriksi satu produk di cart
+add_filter('woocommerce_add_to_cart_validation', 'limit_cart_to_one_product', 10, 3);
+function limit_cart_to_one_product($passed, $product_id, $quantity) {
+    if (WC()->cart->get_cart_contents_count() > 0) {
+        wc_add_notice(__('You can only have one product in the cart.', 'woocommerce'), 'error');
+        return false;
+    }
     return $passed;
 }
 
-// Handle AJAX untuk membuat order
+// Force quantity to 1
+add_action('woocommerce_before_calculate_totals', 'force_quantity_one');
+function force_quantity_one($cart) {
+    foreach ($cart->get_cart() as $cart_item) {
+        $cart_item['quantity'] = 1;
+    }
+}
+
+// Handle order creation via AJAX
 add_action('wp_ajax_create_order', 'create_pending_order');
 add_action('wp_ajax_nopriv_create_order', 'create_pending_order');
 

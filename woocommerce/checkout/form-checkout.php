@@ -19,34 +19,30 @@ defined('ABSPATH') || exit;
 
 do_action('woocommerce_before_checkout_form', $checkout);
 
-// Jika checkout nonaktif, tampilkan pesan
 if (!$checkout) {
     return;
 }
 
-// Alur Multi-Step
+// Multi-step Checkout
 ?>
 <div id="multi-step-checkout">
     <div id="step-1" class="checkout-step active">
         <h2><?php esc_html_e('Billing Details', 'woocommerce'); ?></h2>
         <?php wc_get_template('checkout/form-billing.php'); ?>
-    </div>
-
-    <div id="step-2" class="checkout-step">
-        <h2><?php esc_html_e('Payment', 'woocommerce'); ?></h2>
-        <div class="order-review">
-            <?php wc_get_template('checkout/review-order.php'); ?>
-        </div>
+        <button type="button" id="next-to-payment" class="button alt">
+            <?php esc_html_e('Next', 'woocommerce'); ?>
+        </button>
     </div>
 </div>
 
 <script>
     jQuery(document).ready(function($) {
-        // Tombol "Next" di Step 1
         $('#next-to-payment').on('click', function() {
+            // Navigasi ke step berikutnya
             const step1 = $('#step-1');
-            const step2 = $('#step-2');
+            step1.addClass('completed').hide();
 
+            // Proses order creation melalui AJAX
             const data = {
                 action: 'create_order',
                 nonce: '<?php echo wp_create_nonce('create_order_nonce'); ?>'
@@ -54,11 +50,9 @@ if (!$checkout) {
 
             $.post('<?php echo admin_url('admin-ajax.php'); ?>', data, function(response) {
                 if (response.success) {
-                    step1.removeClass('active').hide();
-                    step2.addClass('active').show();
                     window.location.href = response.data.redirect; // Redirect ke Payment Page
                 } else {
-                    alert(response.data.message || 'Something went wrong.');
+                    alert(response.data.message || 'Error occurred.');
                 }
             });
         });
@@ -67,15 +61,14 @@ if (!$checkout) {
 
 <style>
     /* Styling Multi-Step */
-    #multi-step-checkout {
-        display: flex;
-        flex-direction: column;
-    }
     .checkout-step {
         display: none;
     }
     .checkout-step.active {
         display: block;
+    }
+    .checkout-step.completed {
+        display: none;
     }
 </style>
 
