@@ -61,3 +61,28 @@ add_action('woocommerce_checkout_after_customer_details', function () {
         echo '<button type="submit" class="button alt" id="place_order" style="margin-top: 20px;">' . __('Place Order', 'your-textdomain') . '</button>';
     }
 });
+
+
+// Handle order creation programmatically on form submission.
+add_action('woocommerce_checkout_process', function () {
+    // Ensure the necessary fields are filled in before creating the order.
+    if (empty($_POST['billing_first_name']) || empty($_POST['billing_email'])) {
+        wc_add_notice(__('Please fill in all required fields.', 'your-textdomain'), 'error');
+    }
+});
+
+add_action('woocommerce_checkout_create_order', function ($order, $data) {
+    // Programmatically set the order status to Pending Payment.
+    $order->update_status('pending', __('Order created and awaiting payment.', 'your-textdomain'));
+}, 10, 2);
+
+// Redirect the user to the order payment page after the order is created.
+add_action('woocommerce_thankyou', function ($order_id) {
+    $order = wc_get_order($order_id);
+
+    if ($order && $order->get_status() === 'pending') {
+        // Redirect the user to the "order pay" page.
+        wp_redirect($order->get_checkout_payment_url());
+        exit;
+    }
+});
