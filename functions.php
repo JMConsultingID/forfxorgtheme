@@ -71,25 +71,49 @@ add_action('woocommerce_checkout_process', function () {
     }
 });
 
-// Set a default payment method for the order.
+// Set a default payment method and ensure all required data are set.
 add_action('woocommerce_checkout_create_order', function ($order, $data) {
-    // Set the default payment method (e.g., 'cod', 'bacs', or other gateways).
-    $default_payment_method = 'bacs'; // Replace 'cod' with the payment method ID you prefer.
-    
+    // Set the default payment method (adjust as needed, e.g., 'bacs', 'stripe').
+    $default_payment_method = 'cod'; // Replace 'cod' with your payment method ID.
+
     // Set the payment method for the order.
     $order->set_payment_method($default_payment_method);
 
-    // Update the order status to 'pending'.
+    // Set the payment method title (optional, but ensures clarity).
+    $payment_gateways = WC()->payment_gateways()->payment_gateways();
+    if (isset($payment_gateways[$default_payment_method])) {
+        $order->set_payment_method_title($payment_gateways[$default_payment_method]->get_title());
+    }
+
+    // Set the order status to pending payment.
     $order->update_status('pending', __('Order created and awaiting payment.', 'your-textdomain'));
 }, 10, 2);
 
-// Redirect to the payment page after the order is created.
+// Redirect to the order pay page after order creation.
 add_action('woocommerce_thankyou', function ($order_id) {
     $order = wc_get_order($order_id);
 
     if ($order && $order->get_status() === 'pending') {
-        // Redirect to the "order pay" page.
+        // Redirect the user to the order payment page.
         wp_redirect($order->get_checkout_payment_url());
         exit;
     }
 });
+
+// Add a fallback payment method to prevent errors during checkout process.
+add_filter('woocommerce_available_payment_gateways', function ($available_gateways) {
+    if (is_checkout() && !is_wc_endpoint_url('order-pay')) {
+        // Forcefully set a default payment gateway if none is selected.
+        if (empty($available_gateways)) {
+            $default_payment_method = 'cod'; // Replace 'cod' with your preferred payment method.
+            $available_gateways = [];
+            $gateways = WC()->payment_gateways()->payment_gateways();
+
+            if (isset($gateways[$default_payment_method])) {
+                $available_gateways[$default_payment_method] = $gateways[$default_payment_method];
+            }
+        }
+    }
+    return $available_gateways;
+});
+
