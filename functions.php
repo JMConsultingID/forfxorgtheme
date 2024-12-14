@@ -32,33 +32,32 @@ function forfx_theme_scripts_styles()
 }
 add_action('wp_enqueue_scripts', 'forfx_theme_scripts_styles', 20);
 
-// Remove order review and payment sections from the checkout page.
+// Remove "Your Order" section and payment section properly.
 add_action('wp', function () {
     if (is_checkout() && !is_order_received_page()) {
-        // Remove the order review section.
+        // Remove the "Your Order" section.
         remove_action('woocommerce_checkout_order_review', 'woocommerce_order_review', 10);
-        
+
         // Remove the payment section.
         remove_action('woocommerce_checkout_order_review', 'woocommerce_checkout_payment', 20);
     }
 });
 
-// Modify the "Place Order" button text (optional).
-add_filter('woocommerce_order_button_text', function ($button_text) {
+// Ensure the "Place Order" button is visible.
+add_action('woocommerce_checkout_before_customer_details', function () {
     if (is_checkout() && !is_order_received_page()) {
-        $button_text = __('Place Order', 'your-textdomain');
+        echo '<style>
+            .woocommerce-checkout-review-order-table, 
+            .woocommerce-checkout-payment, 
+            #order_review_heading { display: none !important; }
+            button#place_order { display: block !important; }
+        </style>';
     }
-    return $button_text;
 });
 
-// Add custom styles to hide unnecessary elements if any are left.
-add_action('wp_enqueue_scripts', function () {
+// Add a custom "Place Order" button if necessary.
+add_action('woocommerce_checkout_after_customer_details', function () {
     if (is_checkout() && !is_order_received_page()) {
-        wp_add_inline_style('woocommerce-inline', '
-            .woocommerce-checkout-review-order-table,
-            .woocommerce-checkout-payment {
-                display: none !important;
-            }
-        ');
+        echo '<button type="submit" class="button alt" id="place_order" style="margin-top: 20px;">' . __('Place Order', 'your-textdomain') . '</button>';
     }
 });
