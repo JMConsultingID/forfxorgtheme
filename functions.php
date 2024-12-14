@@ -71,17 +71,24 @@ add_action('woocommerce_checkout_process', function () {
     }
 });
 
+// Set a default payment method for the order.
 add_action('woocommerce_checkout_create_order', function ($order, $data) {
-    // Programmatically set the order status to Pending Payment.
+    // Set the default payment method (e.g., 'cod', 'bacs', or other gateways).
+    $default_payment_method = 'bacs'; // Replace 'cod' with the payment method ID you prefer.
+    
+    // Set the payment method for the order.
+    $order->set_payment_method($default_payment_method);
+
+    // Update the order status to 'pending'.
     $order->update_status('pending', __('Order created and awaiting payment.', 'your-textdomain'));
 }, 10, 2);
 
-// Redirect the user to the order payment page after the order is created.
+// Redirect to the payment page after the order is created.
 add_action('woocommerce_thankyou', function ($order_id) {
     $order = wc_get_order($order_id);
 
     if ($order && $order->get_status() === 'pending') {
-        // Redirect the user to the "order pay" page.
+        // Redirect to the "order pay" page.
         wp_redirect($order->get_checkout_payment_url());
         exit;
     }
