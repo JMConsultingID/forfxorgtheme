@@ -22,7 +22,6 @@ define('FORFX_THEME_VERSION', '2.1.9');
  * @return void
  */
 // require_once get_stylesheet_directory() . '/inc/functions/forfx-theme-functions.php';
-require_once get_stylesheet_directory() . '/inc/functions/forfx-theme-functions-checkout.php';
 
 function forfx_theme_scripts_styles()
 {
